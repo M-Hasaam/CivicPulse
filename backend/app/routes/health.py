@@ -1,5 +1,9 @@
+from typing import Any
+
 from fastapi import APIRouter, Response, status
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+
+from app.repositories.database import ping_database
 
 router = APIRouter(tags=["observability"])
 
@@ -23,6 +27,25 @@ async def liveness() -> dict[str, str]:
     Must NOT touch the database or external services to prevent cascading restart loops.
     """
     return {"status": "ok", "probe": "liveness"}
+
+
+@router.get("/ready")
+async def readiness(response: Response) -> dict[str, Any]:
+    """
+    Readiness probe: 200 only when every dependency is reachable,
+    otherwise 503 naming the dependency that failed.
+    """
+    failed: list[str] = []
+
+    try:
+        await ping_database()
+    except Exception as exc:  # any failure means "not ready", never a crash
+        failed.append(f"postgres ({type(exc).__name__})")
+
+    if failed:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "unready", "failed_dependencies": failed}
+    return {"status": "ready"}
 
 
 @router.get("/metrics")
