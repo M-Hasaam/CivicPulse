@@ -19,28 +19,30 @@ operations dashboard.
 
 Requires Python 3.12. From the repository root (PowerShell):
 
-### 1. Start a local PostgreSQL 16
+### 1. Start a local PostgreSQL 16 and Redis 7
 
-Until Docker Compose lands, run Postgres in a throwaway container:
+Until Docker Compose lands, run them in throwaway containers:
 
 ```powershell
 docker run -d --name civicpulse-dev-pg `
   -e POSTGRES_USER=civicpulse -e POSTGRES_PASSWORD=change_me -e POSTGRES_DB=civicpulse `
   -p 5432:5432 postgres:16-alpine
+
+docker run -d --name civicpulse-dev-redis -p 6379:6379 redis:7-alpine
 ```
 
-That creates the container once. Afterwards, start and stop the same one
+That creates the containers once. Afterwards, start and stop the same ones
 (`docker run` again fails with "name already in use"):
 
 ```powershell
-docker start civicpulse-dev-pg
-docker stop civicpulse-dev-pg
+docker start civicpulse-dev-pg civicpulse-dev-redis
+docker stop civicpulse-dev-pg civicpulse-dev-redis
 ```
 
 ### 2. Configure
 
-Copy `.env.example` to `.env` in the repository root. Its `DATABASE_URL` already
-points at the container above. The backend reads the root `.env` from any
+Copy `.env.example` to `.env` in the repository root. Its `DATABASE_URL` and `REDIS_URL` already
+point at the containers above. The backend reads the root `.env` from any
 working directory; real environment variables override it.
 
 ### 3. Install, migrate, seed, run
@@ -61,7 +63,7 @@ On macOS/Linux, activate with `source .venv/bin/activate` instead.
 | --- | --- |
 | http://localhost:8000/ | Hello endpoint |
 | http://localhost:8000/health | Liveness probe (never touches the database) |
-| http://localhost:8000/ready | Readiness probe: 200 when Postgres is reachable, 503 naming it otherwise |
+| http://localhost:8000/ready | Readiness probe: 200 when Postgres and Redis are reachable, 503 naming what failed otherwise |
 | http://localhost:8000/metrics | Prometheus metrics |
 | http://localhost:8000/docs | Interactive OpenAPI docs |
 
