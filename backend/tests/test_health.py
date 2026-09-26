@@ -22,8 +22,11 @@ def test_health_is_alive_without_touching_the_database(monkeypatch: pytest.Monke
     assert response.json() == {"status": "ok", "probe": "liveness"}
 
 
-def test_ready_returns_200_when_postgres_is_reachable(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ready_returns_200_when_postgres_and_redis_are_reachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(health, "ping_database", _ok)
+    monkeypatch.setattr(health, "ping_redis", _ok)
     response = client.get("/ready")
     assert response.status_code == 200
     assert response.json() == {"status": "ready"}
@@ -33,9 +36,29 @@ def test_ready_returns_503_naming_postgres_when_unreachable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(health, "ping_database", _unreachable)
+    monkeypatch.setattr(health, "ping_redis", _ok)
     response = client.get("/ready")
     assert response.status_code == 503
     assert response.json()["failed_dependencies"] == ["postgres (ConnectionRefusedError)"]
+
+
+def test_ready_returns_503_naming_redis_when_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(health, "ping_database", _ok)
+    monkeypatch.setattr(health, "ping_redis", _unreachable)
+    response = client.get("/ready")
+    assert response.status_code == 503
+    assert response.json()["failed_dependencies"] == ["redis (ConnectionRefusedError)"]
+
+
+def test_ready_names_every_failed_dependency(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(health, "ping_database", _unreachable)
+    monkeypatch.setattr(health, "ping_redis", _unreachable)
+    response = client.get("/ready")
+    assert response.status_code == 503
+    assert response.json()["failed_dependencies"] == [
+        "postgres (ConnectionRefusedError)",
+        "redis (ConnectionRefusedError)",
+    ]
 
 
 def test_metrics_exposes_request_counter() -> None:
