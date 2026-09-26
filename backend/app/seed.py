@@ -351,6 +351,29 @@ SEED_COMPLAINTS: list[dict[str, Any]] = [
         "triaged_by": "simulated",
         "triage_latency_ms": 82,
     },
+    # Other
+    {
+        "text": "Stray dogs pack has become aggressive near the girls school gate. Children scared to walk home after chhutti.",
+        "location": "Sector G-6/2, Street 11",
+        "reporter_contact": "0300-4411223",
+        "category": Category.other,
+        "priority": Priority.normal,
+        "status": Status.open,
+        "ai_summary": "Aggressive stray dogs near girls school gate",
+        "triaged_by": "rules",
+        "triage_latency_ms": 9,
+    },
+    {
+        "text": "Illegal wedding marquee blocking the whole service lane every night with loud music till 2am.",
+        "location": "Sector F-8/3, Service Road East",
+        "reporter_contact": None,
+        "category": Category.other,
+        "priority": Priority.low,
+        "status": Status.open,
+        "ai_summary": "Marquee blocking service lane with late-night noise",
+        "triaged_by": "rules",
+        "triage_latency_ms": 11,
+    },
 ]
 
 
