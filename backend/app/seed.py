@@ -1,0 +1,373 @@
+"""Idempotent demo seed: python -m app.seed
+
+Each complaint is keyed by its text, so running the seed twice inserts nothing
+the second time.
+"""
+
+import asyncio
+from typing import Any
+
+from app.domain import Category, Priority, Status
+from app.repositories.complaint_repo import ComplaintRepository
+from app.repositories.database import async_session, engine
+
+SEED_COMPLAINTS: list[dict[str, Any]] = [
+    # Water
+    {
+        "text": "Main water pipeline burst near Street 12 since fajr time. Water entering ground floor houses and basements.",
+        "location": "Sector G-10/4, Street 12",
+        "reporter_contact": "0300-5551234",
+        "category": Category.water,
+        "priority": Priority.high,
+        "status": Status.open,
+        "ai_summary": "Water pipeline rupture causing ground floor flooding",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 120,
+    },
+    {
+        "text": "Contaminated brown muddy water coming from CDA supply line for last three days. Smells bad and unfit for drinking.",
+        "location": "Sector F-11/2, Street 34",
+        "reporter_contact": "0333-5128990",
+        "category": Category.water,
+        "priority": Priority.high,
+        "status": Status.in_progress,
+        "ai_summary": "CDA municipal water contamination issue",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 115,
+    },
+    {
+        "text": "No water supply in block C since yesterday afternoon. Tankers charging 5000 Rs. Please restore main valve.",
+        "location": "I-8/3, Street 5",
+        "reporter_contact": "0321-9988771",
+        "category": Category.water,
+        "priority": Priority.normal,
+        "status": Status.open,
+        "ai_summary": "Water supply outage in Block C",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 95,
+    },
+    {
+        "text": "Underground water valve leaking near the park gate. Clean water being wasted on road for whole week.",
+        "location": "Sector E-11/3, Main Park",
+        "reporter_contact": None,
+        "category": Category.water,
+        "priority": Priority.low,
+        "status": Status.open,
+        "ai_summary": "Slow valve leakage wasting clean municipal water",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 88,
+    },
+    {
+        "text": "Gutter line broken and mixing with fresh water supply line near house 45. Extreme health hazard.",
+        "location": "Rawalpindi Road, Lane 6",
+        "reporter_contact": "0345-1234567",
+        "category": Category.water,
+        "priority": Priority.high,
+        "status": Status.open,
+        "ai_summary": "Sewer leakage cross-contaminating drinking water line",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 140,
+    },
+    {
+        "text": "Low water pressure in Sector G-8/1 during morning hours. Cannot fill overhead tanks.",
+        "location": "G-8/1, Street 19",
+        "reporter_contact": "0301-4455667",
+        "category": Category.water,
+        "priority": Priority.low,
+        "status": Status.resolved,
+        "ai_summary": "Low water pressure during morning hours",
+        "triaged_by": "rules",
+        "triage_latency_ms": 10,
+    },
+
+    # Electricity
+    {
+        "text": "11kV transformer sparking continuously with loud blast sounds near children school corner.",
+        "location": "Sector F-6/1, School Road",
+        "reporter_contact": "0300-1122334",
+        "category": Category.electricity,
+        "priority": Priority.high,
+        "status": Status.open,
+        "ai_summary": "11kV transformer sparking violently near school",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 105,
+    },
+    {
+        "text": "High voltage wire snapped and hanging loose at head height on footpath near commercial market.",
+        "location": "Blue Area, Block H",
+        "reporter_contact": "0312-3344556",
+        "category": Category.electricity,
+        "priority": Priority.high,
+        "status": Status.open,
+        "ai_summary": "Snapped high-voltage electric cable hanging on sidewalk",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 110,
+    },
+    {
+        "text": "Phase failure on Phase 2 causing severe low voltage (140V). Refrigerator and AC motors burning out.",
+        "location": "Sector G-9/2, Street 7",
+        "reporter_contact": "0331-5566778",
+        "category": Category.electricity,
+        "priority": Priority.normal,
+        "status": Status.in_progress,
+        "ai_summary": "Phase drop causing severe low voltage fluctuation",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 98,
+    },
+    {
+        "text": "Unscheduled load shedding of 6 hours without IESCO feeder maintenance notice.",
+        "location": "Sector I-10/2, Street 15",
+        "reporter_contact": "0322-8877665",
+        "category": Category.electricity,
+        "priority": Priority.normal,
+        "status": Status.resolved,
+        "ai_summary": "Unscheduled power outage on local feeder",
+        "triaged_by": "rules",
+        "triage_latency_ms": 12,
+    },
+    {
+        "text": "Feeder tripped 5 times since asr prayer. Power turns on for 2 mins and trips again.",
+        "location": "Sector H-13, Street 4",
+        "reporter_contact": None,
+        "category": Category.electricity,
+        "priority": Priority.normal,
+        "status": Status.open,
+        "ai_summary": "Continuous feeder tripping",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 85,
+    },
+    {
+        "text": "Electricity meter box door broken and dangling open in rain.",
+        "location": "Sector F-8/4, Street 2",
+        "reporter_contact": "0340-9988112",
+        "category": Category.electricity,
+        "priority": Priority.low,
+        "status": Status.rejected,
+        "ai_summary": "Open meter junction box door",
+        "triaged_by": "rules",
+        "triage_latency_ms": 10,
+    },
+
+    # Sanitation
+    {
+        "text": "Huge garbage kachra kundi overflowing on main road for two weeks. Stray dogs and terrible smell.",
+        "location": "Sector G-7/2, Khadda Market",
+        "reporter_contact": "0300-8877112",
+        "category": Category.sanitation,
+        "priority": Priority.normal,
+        "status": Status.open,
+        "ai_summary": "Overflowing waste dumpster creating public nuisance",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 110,
+    },
+    {
+        "text": "Dead stray animal rotting near community mosque entrance since yesterday. Sanitation staff not lifting it.",
+        "location": "Sector I-9/1, Street 20",
+        "reporter_contact": "0333-4455661",
+        "category": Category.sanitation,
+        "priority": Priority.high,
+        "status": Status.open,
+        "ai_summary": "Urgent dead animal removal required near mosque",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 125,
+    },
+    {
+        "text": "Sewer line choked and black gutter water overflowing across residential street.",
+        "location": "Sector G-6/1, Street 33",
+        "reporter_contact": "0321-1122339",
+        "category": Category.sanitation,
+        "priority": Priority.high,
+        "status": Status.in_progress,
+        "ai_summary": "Choked sewer system overflowing into street",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 105,
+    },
+    {
+        "text": "Open garbage burning happening every evening behind market. Heavy toxic smoke entering houses.",
+        "location": "Sector F-10 Markaz, Back Alley",
+        "reporter_contact": "0313-7766554",
+        "category": Category.sanitation,
+        "priority": Priority.normal,
+        "status": Status.open,
+        "ai_summary": "Illegal open trash burning creating toxic smoke",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 95,
+    },
+    {
+        "text": "Public trash bins in central park are full and broken. Littering all over grass.",
+        "location": "Fatima Jinnah Park, Gate 2",
+        "reporter_contact": None,
+        "category": Category.sanitation,
+        "priority": Priority.low,
+        "status": Status.open,
+        "ai_summary": "Broken and overflowing park trash bins",
+        "triaged_by": "rules",
+        "triage_latency_ms": 8,
+    },
+    {
+        "text": "Sanitation sweepers not sweeping street 40 for past 10 days.",
+        "location": "Sector G-11/3, Street 40",
+        "reporter_contact": "0345-6677889",
+        "category": Category.sanitation,
+        "priority": Priority.low,
+        "status": Status.resolved,
+        "ai_summary": "Regular street sweeping requested",
+        "triaged_by": "rules",
+        "triage_latency_ms": 9,
+    },
+
+    # Roads
+    {
+        "text": "Massive deep sinkhole crater opened on double road after heavy rains. Two motorbikes already fell.",
+        "location": "Kashmir Highway near G-11 exit",
+        "reporter_contact": "0300-9988223",
+        "category": Category.roads,
+        "priority": Priority.high,
+        "status": Status.open,
+        "ai_summary": "Dangerous deep crater on main highway",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 130,
+    },
+    {
+        "text": "Deep potholes across the whole commercial lane damaging car suspensions.",
+        "location": "Sector F-7 Markaz, Jinnah Super",
+        "reporter_contact": "0332-1144778",
+        "category": Category.roads,
+        "priority": Priority.normal,
+        "status": Status.open,
+        "ai_summary": "Commercial area road surface potholes",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 92,
+    },
+    {
+        "text": "Manhole cover missing in middle of unlit road. Huge accident risk for night traffic.",
+        "location": "Sector I-8/4, Street 28",
+        "reporter_contact": "0311-2233445",
+        "category": Category.roads,
+        "priority": Priority.high,
+        "status": Status.in_progress,
+        "ai_summary": "Missing manhole cover on unlit street",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 118,
+    },
+    {
+        "text": "Illegal speed breaker built without permission is scraping car bottoms.",
+        "location": "Sector E-7, Street 14",
+        "reporter_contact": "0323-5566441",
+        "category": Category.roads,
+        "priority": Priority.low,
+        "status": Status.rejected,
+        "ai_summary": "Unauthorized high speed breaker complaint",
+        "triaged_by": "rules",
+        "triage_latency_ms": 11,
+    },
+    {
+        "text": "Footpath broken and tiles uprooted, elderly people cannot walk safely.",
+        "location": "Sector F-6/3, Main Boulevard",
+        "reporter_contact": None,
+        "category": Category.roads,
+        "priority": Priority.low,
+        "status": Status.open,
+        "ai_summary": "Damaged pedestrian walkway tiles",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 86,
+    },
+    {
+        "text": "Construction debris dumping blocking half of service road lane.",
+        "location": "Sector G-13/1, Service Road East",
+        "reporter_contact": "0344-9988332",
+        "category": Category.roads,
+        "priority": Priority.normal,
+        "status": Status.resolved,
+        "ai_summary": "Construction material obstruction on service road",
+        "triaged_by": "rules",
+        "triage_latency_ms": 10,
+    },
+
+    # Streetlights
+    {
+        "text": "Entire block streetlights dead for 2 weeks. Complete darkness causing robbery incidents.",
+        "location": "Sector G-10/2, Street 45",
+        "reporter_contact": "0300-7766112",
+        "category": Category.streetlights,
+        "priority": Priority.high,
+        "status": Status.open,
+        "ai_summary": "Total streetlight blackout across entire residential block",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 115,
+    },
+    {
+        "text": "Street lamp pole knocked down by truck, wires exposed in grass.",
+        "location": "Sector H-8, Education Avenue",
+        "reporter_contact": "0334-2233119",
+        "category": Category.streetlights,
+        "priority": Priority.high,
+        "status": Status.open,
+        "ai_summary": "Damaged streetlight pole with live wires exposed",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 120,
+    },
+    {
+        "text": "Two sodium bulbs fused outside House 12 and 14.",
+        "location": "Sector F-11/1, Street 8",
+        "reporter_contact": "0321-4455887",
+        "category": Category.streetlights,
+        "priority": Priority.low,
+        "status": Status.in_progress,
+        "ai_summary": "Fused streetlight bulbs outside residences",
+        "triaged_by": "rules",
+        "triage_latency_ms": 9,
+    },
+    {
+        "text": "Streetlights remain on during broad daylight wasting electricity since morning.",
+        "location": "Sector G-9/1, Street 52",
+        "reporter_contact": None,
+        "category": Category.streetlights,
+        "priority": Priority.low,
+        "status": Status.resolved,
+        "ai_summary": "Streetlight daylight timer malfunctioning",
+        "triaged_by": "rules",
+        "triage_latency_ms": 8,
+    },
+    {
+        "text": "Solar streetlight battery stolen from the pole near green belt.",
+        "location": "Sector I-10/4, Green Belt",
+        "reporter_contact": "0315-8899221",
+        "category": Category.streetlights,
+        "priority": Priority.normal,
+        "status": Status.open,
+        "ai_summary": "Theft of municipal solar streetlight battery unit",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 90,
+    },
+    {
+        "text": "Flickering streetlight buzzing with loud hum at night.",
+        "location": "Sector F-8/2, Street 11",
+        "reporter_contact": "0342-3344118",
+        "category": Category.streetlights,
+        "priority": Priority.low,
+        "status": Status.open,
+        "ai_summary": "Flickering and noisy streetlight fixture",
+        "triaged_by": "simulated",
+        "triage_latency_ms": 82,
+    },
+]
+
+
+async def seed() -> tuple[int, int]:
+    inserted = skipped = 0
+    async with async_session() as session:
+        repo = ComplaintRepository(session)
+        for complaint in SEED_COMPLAINTS:
+            if await repo.get_by_text(complaint["text"]):
+                skipped += 1
+                continue
+            await repo.create(complaint)
+            inserted += 1
+    await engine.dispose()
+    return inserted, skipped
+
+
+if __name__ == "__main__":
+    inserted, skipped = asyncio.run(seed())
+    print(f"Seed complete: {inserted} inserted, {skipped} already present.")

@@ -37,6 +37,10 @@ select = ["E", "F", "I", "UP", "B"]
 # the local alembic/ migrations folder shadows the package name
 known-third-party = ["alembic"]
 
+[tool.ruff.lint.per-file-ignores]
+# seed data: complaint texts are long natural-language strings
+"app/seed.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
