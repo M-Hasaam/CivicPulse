@@ -29,6 +29,14 @@ docker run -d --name civicpulse-dev-pg `
   -p 5432:5432 postgres:16-alpine
 ```
 
+That creates the container once. Afterwards, start and stop the same one
+(`docker run` again fails with "name already in use"):
+
+```powershell
+docker start civicpulse-dev-pg
+docker stop civicpulse-dev-pg
+```
+
 ### 2. Configure
 
 Copy `.env.example` to `.env` in the repository root. Its `DATABASE_URL` already
