@@ -9,6 +9,9 @@ dependencies = [
     "pydantic>=2.8.0",
     "pydantic-settings>=2.4.0",
     "prometheus-client>=0.20.0",
+    "sqlalchemy[asyncio]>=2.0.32",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.2",
 ]
 
 [project.optional-dependencies]
@@ -30,9 +33,20 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.isort]
+# the local alembic/ migrations folder shadows the package name
+known-third-party = ["alembic"]
+
+[tool.ruff.lint.per-file-ignores]
+# seed data: complaint texts are long natural-language strings
+"app/seed.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
