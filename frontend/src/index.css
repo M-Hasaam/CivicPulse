@@ -213,6 +213,10 @@ code, pre, .mono {
   font-weight: 800;
   color: #fff;
   text-decoration: none;
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .nav-links {
@@ -229,7 +233,7 @@ code, pre, .mono {
   text-decoration: none;
   cursor: pointer;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   transition: all 0.15s ease;
 }
 

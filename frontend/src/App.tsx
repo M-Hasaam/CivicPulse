@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { Navbar } from './components/Navbar';
-
-type Tab = 'submit' | 'dashboard' | 'stats';
+import { Navbar, type Tab } from './components/Navbar';
 
 export function App() {
   const [currentTab, setCurrentTab] = useState<Tab>('submit');

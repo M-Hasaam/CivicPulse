@@ -1,16 +1,18 @@
 import React from 'react';
 import { Send, LayoutDashboard, BarChart3 } from 'lucide-react';
 
+export type Tab = 'submit' | 'dashboard' | 'stats';
+
 interface NavbarProps {
-  currentTab: 'submit' | 'dashboard' | 'stats';
-  onSelectTab: (tab: 'submit' | 'dashboard' | 'stats') => void;
+  currentTab: Tab;
+  onSelectTab: (tab: Tab) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab }) => {
   return (
     <header className="navbar">
       <div className="container nav-container">
-        <div className="nav-brand" style={{ cursor: 'pointer' }} onClick={() => onSelectTab('submit')}>
+        <button type="button" className="nav-brand" onClick={() => onSelectTab('submit')}>
           <div style={{
             width: '32px',
             height: '32px',
@@ -25,7 +27,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab }) => {
             CP
           </div>
           <span>Civic<span style={{ color: 'var(--primary)' }}>Pulse</span></span>
-        </div>
+        </button>
 
         <nav className="nav-links">
           <button
