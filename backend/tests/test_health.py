@@ -1,0 +1,45 @@
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.routes import health
+
+client = TestClient(app)
+
+
+async def _ok() -> None:
+    return None
+
+
+async def _unreachable() -> None:
+    raise ConnectionRefusedError("postgres down")
+
+
+def test_health_is_alive_without_touching_the_database(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(health, "ping_database", _unreachable)
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "probe": "liveness"}
+
+
+def test_ready_returns_200_when_postgres_is_reachable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(health, "ping_database", _ok)
+    response = client.get("/ready")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+
+
+def test_ready_returns_503_naming_postgres_when_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(health, "ping_database", _unreachable)
+    response = client.get("/ready")
+    assert response.status_code == 503
+    assert response.json()["failed_dependencies"] == ["postgres (ConnectionRefusedError)"]
+
+
+def test_metrics_exposes_request_counter() -> None:
+    client.get("/health")
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert "civicpulse_http_requests_total" in response.text
