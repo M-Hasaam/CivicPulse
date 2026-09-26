@@ -1,4 +1,5 @@
 import logging
+import math
 import time
 from typing import Annotated
 
@@ -23,6 +24,11 @@ def client_identifier(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
+
+
+def retry_after_seconds(window_seconds: int) -> int:
+    """Whole seconds until the current fixed window ends (never less than 1)."""
+    return max(1, math.ceil(window_seconds - time.time() % window_seconds))
 
 
 async def check_rate_limit(redis: Redis, identifier: str, limit: int, window_seconds: int) -> bool:
@@ -60,4 +66,5 @@ async def enforce_rate_limit(
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many requests. Please try again later.",
+            headers={"Retry-After": str(retry_after_seconds(settings.RATE_LIMIT_WINDOW_SECONDS))},
         )
