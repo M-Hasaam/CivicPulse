@@ -39,3 +39,15 @@ async def get_stats(
     except RedisError as exc:
         logger.warning("stats cache write failed: %s", exc)
     return stats, MISS
+
+
+async def invalidate_stats(redis: Redis) -> None:
+    """Drop the cached stats after a complaint is created or its status changes.
+
+    Called only once the database write has committed, so a Redis failure here
+    must not fail the request: the entry then simply expires via its TTL.
+    """
+    try:
+        await redis.delete(STATS_KEY)
+    except RedisError as exc:
+        logger.warning("stats cache invalidation failed, entry expires via TTL: %s", exc)
