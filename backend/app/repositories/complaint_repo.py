@@ -51,7 +51,8 @@ class ComplaintRepository:
 
         page_stmt = (
             filtered(select(ComplaintModel))
-            .order_by(ComplaintModel.created_at.desc())
+            # id breaks ties: rows inserted in one transaction share created_at = now()
+            .order_by(ComplaintModel.created_at.desc(), ComplaintModel.id.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
