@@ -1,25 +1,12 @@
 from typing import Any
 
 from fastapi import APIRouter, Response, status
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.cache.client import ping_redis
 from app.repositories.database import ping_database
 
 router = APIRouter(tags=["observability"])
-
-# Prometheus Metrics
-REQUEST_COUNT = Counter(
-    "civicpulse_http_requests_total",
-    "Total HTTP requests received",
-    ["method", "endpoint", "status_code"],
-)
-REQUEST_LATENCY = Histogram(
-    "civicpulse_http_request_duration_seconds",
-    "HTTP request latency in seconds",
-    ["method", "endpoint"],
-)
-
 
 @router.get("/health", status_code=status.HTTP_200_OK)
 async def liveness() -> dict[str, str]:

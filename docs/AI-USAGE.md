@@ -53,5 +53,32 @@ Commits Claude Code helped write carry a
     pagination, `other`-category seed rows, and README notes for restarting the
     dev container.
 
+### Triage providers (#18)
+- **AI:** Claude Code wrote the provider interface, the rules, simulated, Groq and
+  Ollama providers, the retry/timeout helper and the tests. It checked each
+  retry rule against a mock server and made live Groq calls.
+- **Changed after review:**
+  - The live call showed `llama-3.1-8b-instant` had been retired, so we switched
+    to `openai/gpt-oss-20b`.
+  - Copilot's review and Burhan's led to five more changes:
+    - strict `confidence` and single-line summaries
+    - a hard per-attempt deadline
+    - a `TriageError` for malformed 2xx bodies
+    - whole-word keyword matching
+    - a `rules` default in `.env.example`
+  - The merge conflict with #16 was resolved by hand. See
+    `docs/evidence/MERGE-CONFLICT.md`.
+
+### Complaints API (#19)
+- **AI:** Claude Code wrote the state machine, the triage orchestrator, the
+  complaint service, the routes, JSON logging, the lifespan-managed clients and
+  the tests. It checked the flow live against Postgres, Redis and Groq.
+- **Decisions we made:**
+  - Cache results only from the configured provider, and never the fallback.
+  - Keep triage outcomes and hit/miss counts in Redis so all pods agree.
+  - Label request metrics by route template.
+  - Move the Redis client into the lifespan, which fixes the event-loop issue
+    found while reviewing #16.
+
 ### Frontend scaffold (#9)
 - _To be filled in by Burhan._

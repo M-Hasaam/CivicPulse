@@ -1,3 +1,5 @@
+import httpx
+
 from app.config import Settings
 from app.providers.triage.base import TriageProvider
 from app.providers.triage.llm import LLMTriage
@@ -6,7 +8,9 @@ from app.providers.triage.rules import RuleBasedTriage
 from app.providers.triage.simulated import SimulatedTriage
 
 
-def get_triage_provider(settings: Settings) -> TriageProvider:
+def get_triage_provider(
+    settings: Settings, http_client: httpx.AsyncClient | None = None
+) -> TriageProvider:
     """Select the provider named by TRIAGE_PROVIDER. Nothing else in the
     system knows or cares which one it is."""
     match settings.TRIAGE_PROVIDER:
@@ -15,12 +19,14 @@ def get_triage_provider(settings: Settings) -> TriageProvider:
                 api_key=settings.GROQ_API_KEY,
                 model=settings.GROQ_MODEL,
                 timeout_seconds=settings.TRIAGE_TIMEOUT_SECONDS,
+                client=http_client,
             )
         case "ollama":
             return OllamaTriage(
                 base_url=settings.OLLAMA_BASE_URL,
                 model=settings.OLLAMA_MODEL,
                 timeout_seconds=settings.TRIAGE_TIMEOUT_SECONDS,
+                client=http_client,
             )
         case "simulated":
             return SimulatedTriage(
