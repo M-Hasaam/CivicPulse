@@ -1,4 +1,4 @@
-name: Compose smoke
+﻿name: Compose smoke
 
 on:
   pull_request:
@@ -31,19 +31,19 @@ jobs:
       - name: Wait for frontend and backend readiness
         run: |
           for i in {1..60}; do
-            if curl --fail --silent http://localhost/ready | grep -q '"status":"ready"'; then
+            if curl --fail --silent 'http://localhost/ready' | grep -q '"status":"ready"'; then
               exit 0
             fi
-            docker compose ps
+            docker compose --env-file .env.example ps
             sleep 5
           done
-          docker compose logs
+          docker compose --env-file .env.example logs
           exit 1
 
       - name: Smoke test request path through frontend nginx
         run: |
-          curl --fail --silent http://localhost/health
-          curl --fail --silent http://localhost/api/complaints?page=1&page_size=5 | tee complaints.json
+          curl --fail --silent --output /dev/null 'http://localhost/health'
+          curl --fail --silent 'http://localhost/api/complaints?page=1&page_size=5' --output complaints.json
           python - <<'PY'
           import json
           from pathlib import Path
@@ -54,7 +54,7 @@ jobs:
           curl --fail --silent -X POST http://localhost/api/complaints \
             -H 'Content-Type: application/json' \
             --data '{"text":"Street light has been broken for two nights near the school gate.","location":"G-10 Markaz","reporter_contact":"ci@example.com"}' \
-            | tee created.json
+            --output created.json
           python - <<'PY'
           import json
           from pathlib import Path
@@ -63,7 +63,7 @@ jobs:
           assert data['status'] == 'open'
           assert data['triaged_by'] in {'rules', 'simulated', 'rules:fallback'}
           PY
-          curl --fail --silent -D headers.txt http://localhost/api/stats -o stats.json
+          curl --fail --silent -D headers.txt 'http://localhost/api/stats' --output stats.json
           grep -i '^X-Cache:' headers.txt
           python - <<'PY'
           import json
@@ -74,8 +74,8 @@ jobs:
 
       - name: Show Compose state on failure
         if: failure()
-        run: docker compose ps && docker compose logs
+        run: docker compose --env-file .env.example ps && docker compose --env-file .env.example logs
 
       - name: Stop stack
         if: always()
-        run: docker compose down -v --remove-orphans
+        run: docker compose --env-file .env.example down -v --remove-orphans
