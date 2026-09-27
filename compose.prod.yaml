@@ -8,6 +8,10 @@
 #   - no source bind mount and no --reload: the container runs exactly what was built
 #   - no seed: production does not get demo data
 #   - ollama only with --profile ollama
+#   - TRIAGE_PROVIDER is read from PROD_TRIAGE_PROVIDER, not TRIAGE_PROVIDER: the dev
+#     .env sets TRIAGE_PROVIDER=rules, and reusing that file here would otherwise
+#     silently shadow this file's own `llm` default with no error. Set
+#     PROD_TRIAGE_PROVIDER in your deploy environment to override it.
 
 name: civicpulse-prod
 
@@ -73,7 +77,7 @@ services:
       ENVIRONMENT: production
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       REDIS_URL: redis://redis:6379/0
-      TRIAGE_PROVIDER: ${TRIAGE_PROVIDER:-llm}
+      TRIAGE_PROVIDER: ${PROD_TRIAGE_PROVIDER:-llm}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
       OLLAMA_BASE_URL: http://ollama:11434
@@ -83,7 +87,7 @@ services:
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
     expose:
       - "8000"  # reachable by the frontend on 'edge'; not published on the host
-    networks: [edge, internal]
+    networks: [edge, internal, llm]
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -101,7 +105,7 @@ services:
       OLLAMA_KEEP_ALIVE: 24h
     volumes:
       - ollama_models:/root/.ollama
-    networks: [internal, models]
+    networks: [llm, models]
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s
@@ -121,7 +125,7 @@ services:
     environment:
       OLLAMA_HOST: http://ollama:11434
       MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
-    networks: [internal]
+    networks: [llm]
     depends_on:
       ollama: {condition: service_healthy}
     restart: "no"
@@ -130,6 +134,9 @@ networks:
   edge:
     driver: bridge
   internal:
+    driver: bridge
+    internal: true
+  llm:
     driver: bridge
     internal: true
   models:

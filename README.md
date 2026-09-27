@@ -39,14 +39,19 @@ and every other service `healthy`.
 
 | Service | Network | Notes |
 | --- | --- | --- |
-| `backend` | edge + internal | the only service on both; port 8000 published in dev only |
+| `backend` | edge + internal + llm | the only service on all three; port 8000 published in dev only |
 | `postgres` | internal | volume `pgdata`; no published port |
 | `redis` | internal | volume `redisdata`, AOF persistence; no published port |
-| `ollama` | internal + models | volume `ollama_models`; `models` only lets it download weights |
-| `migrate`, `seed`, `ollama-pull` | internal | one-shot jobs, exit 0 |
+| `ollama` | llm + models | volume `ollama_models`; `models` only lets it download weights |
+| `migrate`, `seed` | internal | one-shot jobs, exit 0 |
+| `ollama-pull` | llm | one-shot job, exit 0 |
 
-`internal` is `internal: true`: it has no route to the internet, and nothing
-on `edge` (where the frontend will run) can resolve `postgres` or `redis`.
+`internal` and `llm` are both `internal: true`: neither has a route to the
+internet, and nothing on `edge` (where the frontend will run) can resolve
+`postgres` or `redis`. `ollama` is kept off `internal` and given its own `llm`
+network instead, so a compromised ollama container (a third-party image that
+pulls model weights from the open internet) has no path to the database or
+cache - only to `backend`.
 
 Everyday commands:
 
@@ -60,6 +65,10 @@ In development, `backend/app` is mounted into the container and uvicorn reloads
 on save. `compose.prod.yaml` runs the published images by commit SHA instead,
 with no mount, no reload and no published database ports:
 `IMAGE_TAG=<sha> docker compose -f compose.prod.yaml up -d`.
+
+If you reuse this repo's `.env` for that command, note that `TRIAGE_PROVIDER`
+is deliberately *not* read by `compose.prod.yaml` - set `PROD_TRIAGE_PROVIDER`
+in your deploy environment instead (defaults to `llm`); see `.env.example`.
 
 ## Run without Docker for the app (manual setup)
 

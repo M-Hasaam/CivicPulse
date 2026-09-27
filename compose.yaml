@@ -5,8 +5,11 @@
 #   edge      frontend <-> backend. Normal bridge, so the backend can also reach Groq.
 #   internal  backend <-> postgres <-> redis. internal: true = no route to the outside
 #             world, and nothing on edge can reach it: the frontend has no path to data.
+#   llm       backend <-> ollama only. internal: true. Kept off `internal` so that a
+#             compromised ollama container (third-party image, pulls weights from the
+#             internet) has no network path to postgres or redis.
 #   models    ollama only: lets it download model weights. Nothing else is on it.
-# The backend is the only service on both edge and internal.
+# The backend is the only service on edge, internal and llm.
 
 name: civicpulse
 
@@ -87,7 +90,7 @@ services:
               "--reload", "--reload-dir", "/app/app"]
     ports:
       - "8000:8000"  # dev convenience (API docs); the prod file publishes nothing
-    networks: [edge, internal]
+    networks: [edge, internal, llm]
     stop_grace_period: 30s  # longer than uvicorn's own 20s drain, or Docker SIGKILLs first
     depends_on:
       postgres: {condition: service_healthy}
@@ -96,12 +99,8 @@ services:
       migrate: {condition: service_completed_successfully}
       # so a demo starts with all 32 rows already there, not a partial table
       seed: {condition: service_completed_successfully}
-    healthcheck:
-      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status != 200)"]
-      interval: 10s
-      timeout: 3s
-      start_period: 15s
-      retries: 3
+    # Healthcheck comes from the image's own HEALTHCHECK (backend/Dockerfile):
+    # one definition, so dev and prod can never drift out of sync.
     deploy:
       resources:
         limits: {cpus: "1.0", memory: 512M}
@@ -117,7 +116,7 @@ services:
       OLLAMA_KEEP_ALIVE: 24h
     volumes:
       - ollama_models:/root/.ollama
-    networks: [internal, models]
+    networks: [llm, models]
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s
@@ -135,14 +134,14 @@ services:
     environment:
       OLLAMA_HOST: http://ollama:11434
       MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
-    networks: [internal]
+    networks: [llm]
     depends_on:
       ollama: {condition: service_healthy}
     restart: "no"
 
   # One-shot jobs on the backend image: run, then exit 0.
+  # image: only - backend already builds this exact tag; building it twice was wasted work.
   migrate:
-    build: ./backend
     image: civicpulse-backend:dev
     command: ["alembic", "upgrade", "head"]
     environment:
@@ -166,6 +165,9 @@ networks:
   edge:
     driver: bridge
   internal:
+    driver: bridge
+    internal: true
+  llm:
     driver: bridge
     internal: true
   models:
