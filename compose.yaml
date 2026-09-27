@@ -1,0 +1,179 @@
+# Development stack: `docker compose up --build`.
+# Production uses compose.prod.yaml (prebuilt images, no build:, no source mount).
+#
+# Networks
+#   edge      frontend <-> backend. Normal bridge, so the backend can also reach Groq.
+#   internal  backend <-> postgres <-> redis. internal: true = no route to the outside
+#             world, and nothing on edge can reach it: the frontend has no path to data.
+#   llm       backend <-> ollama only. internal: true. Kept off `internal` so that a
+#             compromised ollama container (third-party image, pulls weights from the
+#             internet) has no network path to postgres or redis.
+#   models    ollama only: lets it download model weights. Nothing else is on it.
+# The backend is the only service on edge, internal and llm.
+
+name: civicpulse
+
+# Shared by every container that talks to Postgres. Compose interpolates
+# POSTGRES_PASSWORD here as plain text with no URL-encoding, so it must stay
+# free of @ : / # % ? & (see the constraint documented in .env.example).
+x-database-url: &database-url
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [internal]
+    # no ports: reachable only from the internal network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512M}
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # AOF: cached stats, triage results and rate-limit counters survive a restart
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
+  backend:
+    build: ./backend
+    image: civicpulse-backend:dev
+    restart: unless-stopped
+    environment:
+      <<: *database-url
+      ENVIRONMENT: development
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Service names, never localhost: each container has its own localhost
+      REDIS_URL: redis://redis:6379/0
+      TRIAGE_PROVIDER: ${TRIAGE_PROVIDER:-rules}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-10}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      # Hardcoded, not ${...}-substituted: this dev backend always has "8000:8000"
+      # below, a direct proxy-free path from the host, regardless of any value in
+      # .env (where TRUSTED_PROXY_HOPS=1 is the *production* default, read by
+      # compose.prod.yaml). Trusting a hop here would let any client pick a
+      # different fake X-Forwarded-For entry per request and bypass the rate
+      # limiter entirely.
+      TRUSTED_PROXY_HOPS: "0"
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    # Development only: the host's source is mounted over the image's copy and
+    # uvicorn reloads on change. compose.prod.yaml runs exactly what was built
+    # and scanned, so it has neither the mount nor --reload.
+    volumes:
+      - ./backend/app:/app/app:ro
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000",
+              "--reload", "--reload-dir", "/app/app"]
+    ports:
+      - "8000:8000"  # dev convenience (API docs); the prod file publishes nothing
+    networks: [edge, internal, llm]
+    stop_grace_period: 30s  # longer than uvicorn's own 20s drain, or Docker SIGKILLs first
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      # the schema exists before the first request; never created at app startup
+      migrate: {condition: service_completed_successfully}
+      # so a demo starts with all 32 rows already there, not a partial table
+      seed: {condition: service_completed_successfully}
+    # Healthcheck comes from the image's own HEALTHCHECK (backend/Dockerfile):
+    # one definition, so dev and prod can never drift out of sync.
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512M}
+
+  # Fully offline triage (TRIAGE_PROVIDER=ollama). The backend does not depend on
+  # it: if Ollama is down or still loading, triage falls back to the rules.
+  ollama:
+    image: ollama/ollama:0.5.7
+    restart: unless-stopped
+    environment:
+      # Keep the model loaded: the default unloads it after 5 idle minutes, and a
+      # cold load (~8-20 s on CPU) exceeds the 10 s triage timeout.
+      OLLAMA_KEEP_ALIVE: 24h
+    volumes:
+      - ollama_models:/root/.ollama
+    networks: [llm, models]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: {cpus: "4.0", memory: 3G}  # CPU inference: fewer cores push a triage past the 10 s timeout
+
+  # Pulls the model into the volume once (later runs find it at once), then runs
+  # one tiny prompt so the model is already in memory for the first complaint.
+  ollama-pull:
+    image: ollama/ollama:0.5.7
+    entrypoint: ["sh", "-c", "ollama pull \"$$MODEL\" && ollama run \"$$MODEL\" ok > /dev/null && echo \"$$MODEL loaded\""]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    networks: [llm]
+    depends_on:
+      ollama: {condition: service_healthy}
+    restart: "no"
+
+  # One-shot jobs on the backend image: run, then exit 0.
+  # image: only - backend already builds this exact tag; building it twice was wasted work.
+  migrate:
+    image: civicpulse-backend:dev
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *database-url
+    networks: [internal]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  seed:
+    image: civicpulse-backend:dev
+    command: ["python", "-m", "app.seed"]  # idempotent: a second run inserts nothing
+    environment:
+      <<: *database-url
+    networks: [internal]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: "no"
+
+networks:
+  edge:
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true
+  llm:
+    driver: bridge
+    internal: true
+  models:
+    driver: bridge
+
+volumes:
+  pgdata:     # PostgreSQL data directory: the durable one
+  redisdata:  # Redis AOF log
+  ollama_models:  # model weights, so ~1.3 GB is not re-pulled on every up

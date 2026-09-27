@@ -6,8 +6,6 @@ A citizen submits a free-text complaint; the backend triages it with an LLM into
 category, a priority and a one-line summary, persists it, and surfaces it on an
 operations dashboard.
 
-> Work in progress. This README covers local development; the one-command
-> Docker Compose quickstart will replace it once the stack is containerised.
 
 ## Stack
 
@@ -17,7 +15,64 @@ operations dashboard.
 - **AI triage:** Groq (hosted), Ollama (offline) or keyword rules, behind one interface
 - **Frontend:** React 18 + Vite + TypeScript
 
-## Run everything locally
+## Quickstart (Docker Compose)
+
+Needs only Docker Desktop.
+
+```powershell
+git clone https://github.com/M-Hasaam/CivicPulse.git
+cd CivicPulse
+Copy-Item .env.example .env      # macOS/Linux: cp .env.example .env; then set POSTGRES_PASSWORD
+docker compose up -d --build
+```
+
+On first start the stack:
+- waits for Postgres and Redis to become healthy;
+- runs the database migration (`migrate`);
+- loads 32 demo complaints (`seed`, safe to repeat);
+- pulls and warms the Ollama model (~1.3 GB, only once);
+- starts the backend.
+
+Check http://localhost:8000/ready, then try the API at http://localhost:8000/docs.
+`docker compose ps -a` should show `migrate`, `seed` and `ollama-pull` as `Exited (0)`
+and every other service `healthy`.
+
+| Service | Network | Notes |
+| --- | --- | --- |
+| `backend` | edge + internal + llm | the only service on all three; port 8000 published in dev only |
+| `postgres` | internal | volume `pgdata`; no published port |
+| `redis` | internal | volume `redisdata`, AOF persistence; no published port |
+| `ollama` | llm + models | volume `ollama_models`; `models` only lets it download weights |
+| `migrate`, `seed` | internal | one-shot jobs, exit 0 |
+| `ollama-pull` | llm | one-shot job, exit 0 |
+
+`internal` and `llm` are both `internal: true`: neither has a route to the
+internet, and nothing on `edge` (where the frontend will run) can resolve
+`postgres` or `redis`. `ollama` is kept off `internal` and given its own `llm`
+network instead, so a compromised ollama container (a third-party image that
+pulls model weights from the open internet) has no path to the database or
+cache - only to `backend`.
+
+Everyday commands:
+
+```powershell
+docker compose logs -f backend    # JSON logs, one line per event, with request_id
+docker compose down               # stop; all data is kept in the volumes
+docker compose down -v            # stop and delete the data
+```
+
+In development, `backend/app` is mounted into the container and uvicorn reloads
+on save. `compose.prod.yaml` runs the published images by commit SHA instead,
+with no mount, no reload and no published database ports:
+`IMAGE_TAG=<sha> docker compose -f compose.prod.yaml up -d`.
+
+If you reuse this repo's `.env` for that command, note that `TRIAGE_PROVIDER`
+is deliberately *not* read by `compose.prod.yaml` - set `PROD_TRIAGE_PROVIDER`
+in your deploy environment instead (defaults to `llm`); see `.env.example`.
+
+## Run without Docker for the app (manual setup)
+
+Useful for debugging the backend in your editor. The databases still run in containers.
 
 | Service | Runs as | Address |
 | --- | --- | --- |

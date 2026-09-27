@@ -1,0 +1,148 @@
+# Production-style stack: runs prebuilt, scanned images by immutable tag.
+#   IMAGE_TAG=<git sha> docker compose -f compose.prod.yaml up -d
+# Differences from compose.yaml, all deliberate:
+#   - image: ...:${IMAGE_TAG}, and no build: anywhere (build once, deploy many)
+#   - no published ports on postgres, redis or the backend; the frontend (nginx) is the
+#     only way in. This also keeps TRUSTED_PROXY_HOPS=1 honest: nobody can reach the
+#     backend directly and choose their own X-Forwarded-For.
+#   - no source bind mount and no --reload: the container runs exactly what was built
+#   - no seed: production does not get demo data
+#   - ollama only with --profile ollama
+#   - TRIAGE_PROVIDER is read from PROD_TRIAGE_PROVIDER, not TRIAGE_PROVIDER: the dev
+#     .env sets TRIAGE_PROVIDER=rules, and reusing that file here would otherwise
+#     silently shadow this file's own `llm` default with no error. Set
+#     PROD_TRIAGE_PROVIDER in your deploy environment to override it.
+
+name: civicpulse-prod
+
+x-backend-image: &backend-image ghcr.io/m-hasaam/civicpulse/backend:${IMAGE_TAG:?set IMAGE_TAG to the commit SHA to deploy}
+
+# Interpolated as plain text with no URL-encoding - see the character constraint
+# documented on POSTGRES_PASSWORD in .env.example.
+x-database-url: &database-url
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512M}
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
+  migrate:
+    image: *backend-image
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *database-url
+    networks: [internal]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  backend:
+    image: *backend-image
+    restart: unless-stopped
+    # CMD comes from the image: uvicorn without --reload, graceful SIGTERM drain
+    environment:
+      <<: *database-url
+      ENVIRONMENT: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      REDIS_URL: redis://redis:6379/0
+      TRIAGE_PROVIDER: ${PROD_TRIAGE_PROVIDER:-llm}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-10}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+    expose:
+      - "8000"  # reachable by the frontend on 'edge'; not published on the host
+    networks: [edge, internal, llm]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
+    stop_grace_period: 30s  # longer than uvicorn's 20 s drain
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512M}
+
+  ollama:
+    image: ollama/ollama:0.5.7
+    profiles: [ollama]
+    restart: unless-stopped
+    environment:
+      OLLAMA_KEEP_ALIVE: 24h
+    volumes:
+      - ollama_models:/root/.ollama
+    networks: [llm, models]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: {cpus: "4.0", memory: 3G}
+
+  # A fresh deployment's ollama_models volume is empty: without this, the
+  # container runs but has no model, and TRIAGE_PROVIDER=ollama fails until
+  # someone execs in and pulls it by hand. Matches dev's ollama-pull.
+  ollama-pull:
+    image: ollama/ollama:0.5.7
+    profiles: [ollama]
+    entrypoint: ["sh", "-c", "ollama pull \"$$MODEL\" && ollama run \"$$MODEL\" ok > /dev/null && echo \"$$MODEL loaded\""]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    networks: [llm]
+    depends_on:
+      ollama: {condition: service_healthy}
+    restart: "no"
+
+networks:
+  edge:
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true
+  llm:
+    driver: bridge
+    internal: true
+  models:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  ollama_models:
