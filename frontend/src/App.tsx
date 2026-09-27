@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SubmitPage } from './pages/SubmitPage';
+import { DashboardPage } from './pages/DashboardPage';
 
 export function App() {
   return (
@@ -15,7 +16,7 @@ export function App() {
               <Routes>
                 <Route path="/" element={<Navigate to="/submit" replace />} />
                 <Route path="/submit" element={<SubmitPage />} />
-                <Route path="/dashboard" element={<h2>Dashboard</h2>} />
+                <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/stats" element={<h2>Stats</h2>} />
               </Routes>
             </ErrorBoundary>
