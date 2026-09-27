@@ -3,7 +3,7 @@ import time
 from fastapi import FastAPI, Request, Response
 
 from app.config import settings
-from app.routes.health import REQUEST_COUNT, REQUEST_LATENCY
+from app.metrics import REQUEST_COUNT, REQUEST_LATENCY
 from app.routes.health import router as health_router
 
 app = FastAPI(title="CivicPulse API")
@@ -15,7 +15,10 @@ async def metrics_middleware(request: Request, call_next) -> Response:  # type: 
     response: Response = await call_next(request)
     duration = time.perf_counter() - start_time
 
-    endpoint = request.url.path
+    # Label by route template (/api/complaints/{complaint_id}), never the raw path:
+    # one time series per URL would grow without bound.
+    route = request.scope.get("route")
+    endpoint = getattr(route, "path", "unmatched")
     REQUEST_COUNT.labels(
         method=request.method, endpoint=endpoint, status_code=str(response.status_code)
     ).inc()
