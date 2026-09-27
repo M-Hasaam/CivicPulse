@@ -1,11 +1,34 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain import Category, Priority, Status
 from app.repositories.models import ComplaintModel
+
+# Bounds how long a status change waits on another one's row lock. Without this,
+# a burst of concurrent requests against the same complaint (a flaky client
+# retrying, or a script) could each block indefinitely while holding a pooled
+# connection, exhausting the pool with nothing ever timing out.
+LOCK_TIMEOUT_SECONDS = 5
+
+# Postgres SQLSTATE for "lock_not_available" - exactly what SET LOCAL lock_timeout
+# produces. Checked explicitly so an unrelated DBAPIError (a dropped connection, a
+# constraint violation) is never misreported as a retryable lock timeout.
+_LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
+
+
+class ComplaintLockTimeoutError(Exception):
+    """A concurrent status change on the same complaint held its lock too long."""
+
+    def __init__(self, complaint_id: uuid.UUID) -> None:
+        self.complaint_id = complaint_id
+        super().__init__(
+            f"Timed out after {LOCK_TIMEOUT_SECONDS}s waiting for a concurrent "
+            f"update to complaint {complaint_id} to finish"
+        )
 
 
 class ComplaintRepository:
@@ -23,6 +46,37 @@ class ComplaintRepository:
 
     async def get_by_id(self, complaint_id: uuid.UUID) -> ComplaintModel | None:
         return await self.session.get(ComplaintModel, complaint_id)
+
+    async def get_by_id_for_update(self, complaint_id: uuid.UUID) -> ComplaintModel | None:
+        """Like get_by_id, but locks the row (SELECT ... FOR UPDATE) until the
+        surrounding transaction commits or rolls back.
+
+        Without this, two concurrent status changes on the same complaint can both
+        read the old status, both pass the state-machine check against it, and both
+        commit - a classic lost update where the loser's write silently disappears
+        and its 200 response lies about the final state. With the lock, the second
+        request's read blocks until the first commits, then it re-reads the row and
+        validates against the *current* status, so at most one of two conflicting
+        transitions can ever succeed.
+
+        The wait is bounded by LOCK_TIMEOUT_SECONDS: raises ComplaintLockTimeoutError
+        rather than blocking forever if the first transaction never commits.
+        """
+        await self.session.execute(text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT_SECONDS}s'"))
+        try:
+            return await self.session.scalar(self._for_update_statement(complaint_id))
+        except DBAPIError as exc:
+            # asyncpg/SQLAlchemy wraps a cancelled-by-lock-timeout query as a plain
+            # DBAPIError, not OperationalError - check the actual Postgres SQLSTATE
+            # rather than the Python exception class.
+            sqlstate = getattr(exc.orig, "sqlstate", None)
+            if sqlstate == _LOCK_NOT_AVAILABLE_SQLSTATE:
+                raise ComplaintLockTimeoutError(complaint_id) from exc
+            raise
+
+    @staticmethod
+    def _for_update_statement(complaint_id: uuid.UUID) -> Select[ComplaintModel]:
+        return select(ComplaintModel).where(ComplaintModel.id == complaint_id).with_for_update()
 
     async def get_by_text(self, text: str) -> ComplaintModel | None:
         result = await self.session.execute(

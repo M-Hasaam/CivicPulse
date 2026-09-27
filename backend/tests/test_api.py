@@ -1,8 +1,10 @@
 """End-to-end HTTP tests: real routes, service, triage orchestration and caches,
 with an in-memory repository, fakeredis and a deterministic provider."""
 
+import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -13,6 +15,7 @@ from app.dependencies import get_complaint_repository, get_triage
 from app.main import app
 from app.providers.triage.base import TriageProvider, parse_triage_output
 from app.providers.triage.simulated import SimulatedTriage
+from app.repositories.complaint_repo import ComplaintLockTimeoutError
 from app.services.triage_service import TriageOrchestrator
 from tests.fakes import FakeComplaintRepository
 
@@ -80,6 +83,25 @@ async def test_openapi_documents_400_and_not_422() -> None:
     schema = app.openapi()
     post = schema["paths"]["/api/complaints"]["post"]["responses"]
     assert "400" in post and "422" not in post
+
+
+async def test_openapi_409_schema_matches_the_fields_the_route_actually_returns(
+    api: Api,
+) -> None:
+    """A generated client must be able to type current_status/attempted_status,
+    not just the bare `detail` string ErrorOut alone would document."""
+    app.openapi_schema = None  # force a fresh build against the current routes
+    schema = app.openapi()
+    patch = schema["paths"]["/api/complaints/{complaint_id}/status"]["patch"]
+    ref = patch["responses"]["409"]["content"]["application/json"]["schema"]["$ref"]
+    schema_name = ref.rsplit("/", 1)[-1]
+    documented_fields = set(schema["components"]["schemas"][schema_name]["properties"])
+
+    created = (await api.client.post("/api/complaints", json=VALID)).json()
+    conflict = await api.client.patch(
+        f"/api/complaints/{created['id']}/status", json={"status": "resolved"}
+    )
+    assert set(conflict.json()) <= documented_fields
 
 
 # --- the brief's must-have: a failing provider never costs the citizen a 500 --------------
@@ -184,6 +206,25 @@ async def test_valid_transition_is_200_and_invalid_is_409_naming_it(api: Api) ->
 
     moved = await api.client.patch(url, json={"status": "in_progress"})
     assert moved.status_code == 200 and moved.json()["status"] == "in_progress"
+
+
+async def test_a_lock_timeout_on_status_change_is_409_and_marked_retryable(
+    api: Api,
+) -> None:
+    """change_status's row lock can time out (see complaint_repo); confirms the
+    registered handler, not just that the repository raises the right type."""
+    complaint_id = uuid.uuid4()
+    api.repo.get_by_id_for_update = AsyncMock(  # type: ignore[method-assign]
+        side_effect=ComplaintLockTimeoutError(complaint_id)
+    )
+
+    response = await api.client.patch(
+        f"/api/complaints/{complaint_id}/status", json={"status": "in_progress"}
+    )
+    assert response.status_code == 409
+    body = response.json()
+    assert body["retryable"] is True
+    assert str(complaint_id) in body["detail"]
 
 
 # --- stats and provider metadata ------------------------------------------------------------

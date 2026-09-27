@@ -5,8 +5,9 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request, Response, status
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
 
 from app.cache.client import close_redis, connect_redis
 from app.config import settings
@@ -57,7 +58,23 @@ async def request_context(request: Request, call_next) -> Response:  # type: ign
     token = request_id_var.set(request_id)
     started = time.perf_counter()
     try:
-        response: Response = await call_next(request)
+        try:
+            response: Response = await call_next(request)
+        except Exception:
+            # Every domain error we know about is a registered exception handler and
+            # never reaches here (ComplaintNotFoundError, InvalidTransitionError,
+            # RequestValidationError all produce a normal response before this point).
+            # This is a bug we did not anticipate. Without this, it would escape to
+            # Starlette's default handler with no request id, no metric and no log line -
+            # exactly the failure this middleware exists to prevent.
+            logger.exception(
+                "unhandled exception",
+                extra={"method": request.method, "path": request.url.path},
+            )
+            response = JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"detail": "Internal server error"},
+            )
         duration = time.perf_counter() - started
         response.headers["X-Request-ID"] = request_id
 

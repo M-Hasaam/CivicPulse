@@ -6,8 +6,6 @@ A citizen submits a free-text complaint; the backend triages it with an LLM into
 category, a priority and a one-line summary, persists it, and surfaces it on an
 operations dashboard.
 
-> Work in progress. This README covers local development; the one-command
-> Docker Compose quickstart will replace it once the stack is containerised.
 
 ## Stack
 
@@ -17,7 +15,112 @@ operations dashboard.
 - **AI triage:** Groq (hosted), Ollama (offline) or keyword rules, behind one interface
 - **Frontend:** React 18 + Vite + TypeScript
 
-## Run everything locally
+## Quickstart (Docker Compose)
+
+This is the easiest way to run the whole project. You only need Docker Desktop.
+
+### 1. Clone the repository
+
+```powershell
+git clone https://github.com/M-Hasaam/CivicPulse.git
+cd CivicPulse
+```
+
+### 2. Create `.env` one time
+
+```powershell
+Copy-Item .env.example .env
+```
+
+On macOS/Linux:
+
+```bash
+cp .env.example .env
+```
+
+The default `.env` uses `TRIAGE_PROVIDER=rules`, so the app works without an API
+key and without downloading an AI model.
+
+### 3. Choose how to run triage
+
+| Option | When to use it | `.env` value | Command |
+| --- | --- | --- | --- |
+| Rules, no Ollama | Fastest first run. No model download. | `TRIAGE_PROVIDER=rules` | `docker compose up -d --build --scale ollama=0 --scale ollama-pull=0` |
+| Ollama | Fully offline AI triage. Downloads the model once. | `TRIAGE_PROVIDER=ollama` | `docker compose up -d --build` |
+
+For a normal first run, use the rules option:
+
+```powershell
+docker compose up -d --build --scale ollama=0 --scale ollama-pull=0
+```
+
+If you choose Ollama, edit `.env` first:
+
+```text
+TRIAGE_PROVIDER=ollama
+```
+
+Then run:
+
+```powershell
+docker compose up -d --build
+```
+
+The first Ollama run downloads and warms the configured model into the
+`ollama_models` volume.
+
+### 4. Wait for the stack
+
+On first start, Docker Compose:
+
+- waits for Postgres and Redis to become healthy;
+- runs the database migration (`migrate`);
+- loads 32 demo complaints (`seed`, safe to repeat);
+- starts the backend, then the frontend once the backend is healthy.
+
+Check everything:
+
+```powershell
+docker compose ps -a
+```
+
+For the rules option, you should see:
+
+- `frontend`, `backend`, `postgres` and `redis` are healthy;
+- `migrate` and `seed` exited with code `0`;
+- no `ollama` containers are running.
+
+For the Ollama option, `ollama` should be running and `ollama-pull` should exit
+with code `0`.
+
+### 5. Open the app
+
+| What | URL |
+| --- | --- |
+| App | http://localhost |
+| API docs | http://localhost/docs |
+| Backend readiness | http://localhost/ready |
+
+Everyday commands:
+
+```powershell
+docker compose logs -f backend    # JSON logs, one line per event, with request_id
+docker compose down               # stop; all data is kept in the volumes
+docker compose down -v            # stop and delete the data
+```
+
+In development, `backend/app` is mounted into the container and uvicorn reloads
+on save. `compose.prod.yaml` runs the published images by commit SHA instead,
+with no mount, no reload and no published database ports:
+`IMAGE_TAG=<sha> docker compose -f compose.prod.yaml up -d`.
+
+If you reuse this repo's `.env` for that command, note that `TRIAGE_PROVIDER`
+is deliberately *not* read by `compose.prod.yaml` - set `PROD_TRIAGE_PROVIDER`
+in your deploy environment instead (defaults to `llm`); see `.env.example`.
+
+## Run without Docker for the app (manual setup)
+
+Useful for debugging the backend in your editor. The databases still run in containers.
 
 | Service | Runs as | Address |
 | --- | --- | --- |

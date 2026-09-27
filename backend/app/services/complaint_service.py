@@ -59,11 +59,15 @@ class ComplaintService:
         await stats_cache.invalidate_stats(self.redis)
         return complaint
 
-    async def get(self, complaint_id: uuid.UUID) -> ComplaintModel:
-        complaint = await self.repo.get_by_id(complaint_id)
+    @staticmethod
+    def _require(complaint: ComplaintModel | None, complaint_id: uuid.UUID) -> ComplaintModel:
         if complaint is None:
             raise ComplaintNotFoundError(complaint_id)
         return complaint
+
+    async def get(self, complaint_id: uuid.UUID) -> ComplaintModel:
+        complaint = await self.repo.get_by_id(complaint_id)
+        return self._require(complaint, complaint_id)
 
     async def list(
         self,
@@ -76,7 +80,11 @@ class ComplaintService:
         return await self.repo.list_complaints(category, priority, status, page, page_size)
 
     async def change_status(self, complaint_id: uuid.UUID, target: Status) -> ComplaintModel:
-        complaint = await self.get(complaint_id)
+        # Locks the row until update_status commits, so a concurrent change to the
+        # same complaint waits, then validates against the status this one left
+        # behind - see get_by_id_for_update's docstring.
+        complaint = await self.repo.get_by_id_for_update(complaint_id)
+        complaint = self._require(complaint, complaint_id)
         ensure_transition(complaint.status, target)  # raises InvalidTransitionError -> 409
         updated = await self.repo.update_status(complaint, target)
         await stats_cache.invalidate_stats(self.redis)

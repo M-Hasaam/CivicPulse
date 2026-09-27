@@ -56,15 +56,21 @@ async def test_fallback_logs_one_warning_with_id_provider_and_error(
 async def test_writes_invalidate_the_stats_cache(redis: Redis) -> None:
     service, _ = make_service(redis)
     first = await service.create(TEXT, "F-6/1", None)
+
     _, state = await service.stats()
-    assert state == stats_cache.MISS and await redis.exists(stats_cache.STATS_KEY)
+    assert state == stats_cache.MISS
+    _, state = await service.stats()
+    assert state == stats_cache.HIT  # served from cache, not recomputed
 
     await service.create("Pothole crater on the main double road", "Kashmir Hwy", None)
-    assert not await redis.exists(stats_cache.STATS_KEY)  # new complaint shows immediately
+    stats, state = await service.stats()
+    assert state == stats_cache.MISS  # the write invalidated the cache, not just expiry
+    assert stats["total_complaints"] == 2  # new complaint shows immediately
 
-    await service.stats()
+    await service.stats()  # repopulate the cache
     await service.change_status(first.id, Status.in_progress)
-    assert not await redis.exists(stats_cache.STATS_KEY)
+    _, state = await service.stats()
+    assert state == stats_cache.MISS  # a status change invalidates it too
 
 
 async def test_stats_are_a_hit_on_the_second_read(redis: Redis) -> None:
