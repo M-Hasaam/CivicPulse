@@ -21,6 +21,8 @@ interface ActionSelectProps {
 export function ActionSelect({ options, onSelect, ariaLabel, disabled = false }: ActionSelectProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -38,6 +40,64 @@ export function ActionSelect({ options, onSelect, ariaLabel, disabled = false }:
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
+  // Move focus onto the first option the moment the menu opens, so keyboard
+  // users landing here via Enter/Space/ArrowDown can immediately navigate it.
+  useEffect(() => {
+    if (open) itemRefs.current[0]?.focus();
+  }, [open]);
+
+  function closeAndRefocusTrigger() {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
+
+  function selectAt(index: number) {
+    const option = options[index];
+    if (!option) return;
+    onSelect(option.value);
+    closeAndRefocusTrigger();
+  }
+
+  function handleTriggerKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setOpen(true);
+    }
+  }
+
+  function handleItemKeyDown(e: React.KeyboardEvent<HTMLLIElement>, index: number) {
+    switch (e.key) {
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        selectAt(index);
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        itemRefs.current[(index + 1) % options.length]?.focus();
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        itemRefs.current[(index - 1 + options.length) % options.length]?.focus();
+        break;
+      case 'Home':
+        e.preventDefault();
+        itemRefs.current[0]?.focus();
+        break;
+      case 'End':
+        e.preventDefault();
+        itemRefs.current[options.length - 1]?.focus();
+        break;
+      case 'Escape':
+        e.preventDefault();
+        closeAndRefocusTrigger();
+        break;
+      case 'Tab':
+        setOpen(false);
+        break;
+    }
+  }
+
   if (disabled) {
     return (
       <button type="button" className="action-select-trigger" disabled
@@ -52,9 +112,11 @@ export function ActionSelect({ options, onSelect, ariaLabel, disabled = false }:
   return (
     <div ref={ref} className="action-select-root" aria-label={ariaLabel}>
       <button
+        ref={triggerRef}
         type="button"
         className={`action-select-trigger${open ? ' open' : ''}`}
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={handleTriggerKeyDown}
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -67,15 +129,15 @@ export function ActionSelect({ options, onSelect, ariaLabel, disabled = false }:
 
       {open && (
         <ul className="action-select-dropdown" role="menu">
-          {options.map((o) => (
+          {options.map((o, index) => (
             <li
               key={o.value}
+              ref={(el) => { itemRefs.current[index] = el; }}
               role="menuitem"
+              tabIndex={-1}
               className="action-select-option"
-              onClick={() => {
-                onSelect(o.value);
-                setOpen(false);
-              }}
+              onClick={() => selectAt(index)}
+              onKeyDown={(e) => handleItemKeyDown(e, index)}
             >
               <ArrowRight size={11} className="action-select-icon" />
               {o.label}
