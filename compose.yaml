@@ -86,11 +86,14 @@ services:
     ports:
       - "8000:8000"  # dev convenience (API docs); the prod file publishes nothing
     networks: [edge, internal]
+    stop_grace_period: 30s  # longer than uvicorn's own 20s drain, or Docker SIGKILLs first
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
       # the schema exists before the first request; never created at app startup
       migrate: {condition: service_completed_successfully}
+      # so a demo starts with all 32 rows already there, not a partial table
+      seed: {condition: service_completed_successfully}
     healthcheck:
       test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status != 200)"]
       interval: 10s
