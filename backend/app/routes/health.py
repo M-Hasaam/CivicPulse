@@ -3,6 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Response, status
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
+from app.cache.client import ping_redis
 from app.repositories.database import ping_database
 
 router = APIRouter(tags=["observability"])
@@ -41,6 +42,11 @@ async def readiness(response: Response) -> dict[str, Any]:
         await ping_database()
     except Exception as exc:  # any failure means "not ready", never a crash
         failed.append(f"postgres ({type(exc).__name__})")
+
+    try:
+        await ping_redis()
+    except Exception as exc:
+        failed.append(f"redis ({type(exc).__name__})")
 
     if failed:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
