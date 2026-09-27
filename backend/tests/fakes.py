@@ -31,6 +31,12 @@ class FakeComplaintRepository:
     async def get_by_id(self, complaint_id: uuid.UUID) -> ComplaintModel | None:
         return self.rows.get(complaint_id)
 
+    async def get_by_id_for_update(self, complaint_id: uuid.UUID) -> ComplaintModel | None:
+        # No real transactions or concurrent access in this in-memory fake, so
+        # there is nothing to lock; kept only so ComplaintService can call the
+        # same method name against either repository.
+        return self.rows.get(complaint_id)
+
     async def list_complaints(
         self,
         category: Category | None = None,

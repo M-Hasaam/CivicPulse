@@ -23,14 +23,26 @@ def triage_key(text: str) -> str:
 async def get_cached_triage(redis: Redis, text: str) -> dict[str, Any] | None:
     """Return a previously stored triage result for this text, or None on a miss.
 
-    Any Redis error counts as a miss: triage then just runs as if uncached.
+    Any Redis error, or a stored value that turns out not to be a JSON object
+    (corrupted, truncated, or written by a since-changed version of this cache),
+    counts as a miss: triage then just runs as if uncached, rather than a 500.
     """
     try:
         cached = await redis.get(triage_key(text))
     except RedisError as exc:
         logger.warning("triage cache read failed, treating as miss: %s", exc)
         return None
-    return json.loads(cached) if cached is not None else None
+    if cached is None:
+        return None
+    try:
+        entry = json.loads(cached)
+    except json.JSONDecodeError:
+        logger.warning("triage cache entry is not valid JSON, treating as miss")
+        return None
+    if not isinstance(entry, dict):
+        logger.warning("triage cache entry is not a JSON object, treating as miss")
+        return None
+    return entry
 
 
 async def cache_triage(redis: Redis, text: str, result: dict[str, Any]) -> None:

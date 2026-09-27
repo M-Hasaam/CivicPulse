@@ -14,7 +14,7 @@ def test_formatter_writes_one_json_object_with_request_id_and_extras() -> None:
     token = request_id_var.set("abc-123")
     try:
         record = logging.getLogger("t").makeRecord(
-            "t", logging.WARNING, __file__, 1, "triage fell back to rules", None, None,
+            "t", logging.WARNING, __file__, 1, "triage fell back to rules", (), None,
             extra={"complaint_id": "c-1", "provider": "llm:groq", "error_class": "TimeoutError"},
         )
     finally:
@@ -54,3 +54,34 @@ def test_unsafe_request_ids_are_replaced(unsafe: str) -> None:
 def test_request_id_does_not_leak_outside_the_request() -> None:
     client.get("/health", headers={"X-Request-ID": "req-99"})
     assert request_id_var.get() == "-"
+
+
+def test_unhandled_exception_still_gets_a_request_id_metric_and_log_line(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A bug we did not anticipate must not escape with none of the observability
+    every other response gets - this is what the brief's request_id/log
+    requirement is actually protecting against."""
+
+    async def boom() -> None:
+        raise RuntimeError("simulated unexpected bug")
+
+    app.add_api_route("/__test_unhandled__", boom)
+    try:
+        with caplog.at_level(logging.INFO, logger="civicpulse"):
+            response = client.get("/__test_unhandled__", headers={"X-Request-ID": "req-boom"})
+    finally:
+        app.router.routes[:] = [
+            r for r in app.router.routes if getattr(r, "path", None) != "/__test_unhandled__"
+        ]
+
+    assert response.status_code == 500
+    assert response.headers["X-Request-ID"] == "req-boom"
+    assert response.json() == {"detail": "Internal server error"}  # no traceback leaked
+
+    errors = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert errors and errors[-1].request_id == "req-boom"  # type: ignore[attr-defined]
+    assert errors[-1].exc_info is not None  # logger.exception captured the traceback
+
+    completed = [r for r in caplog.records if r.getMessage() == "request completed"]
+    assert completed[-1].status == 500  # type: ignore[attr-defined]

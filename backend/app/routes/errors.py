@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.repositories.complaint_repo import ComplaintLockTimeoutError
 from app.services.complaint_service import ComplaintNotFoundError
 from app.services.state_machine import InvalidTransitionError
 
@@ -42,7 +43,16 @@ async def _invalid_transition(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
+async def _lock_timeout(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, ComplaintLockTimeoutError)
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": str(exc), "retryable": True},
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, _validation_failed)
     app.add_exception_handler(ComplaintNotFoundError, _not_found)
     app.add_exception_handler(InvalidTransitionError, _invalid_transition)
+    app.add_exception_handler(ComplaintLockTimeoutError, _lock_timeout)

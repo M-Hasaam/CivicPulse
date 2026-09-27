@@ -96,3 +96,13 @@ class FieldError(BaseModel):
 class ValidationErrorOut(BaseModel):
     detail: str
     errors: list[FieldError]
+
+
+class TransitionErrorOut(BaseModel):
+    """409 body for PATCH .../status: the fields _invalid_transition actually
+    returns, so a generated client can type and discover them instead of only
+    the bare `detail` string that ErrorOut promises."""
+
+    detail: str
+    current_status: Status
+    attempted_status: Status

@@ -14,6 +14,7 @@ from app.schemas import (
     ComplaintPage,
     ErrorOut,
     StatusUpdate,
+    TransitionErrorOut,
     ValidationErrorOut,
 )
 
@@ -60,7 +61,7 @@ async def list_complaints(
 
 @router.patch(
     "/{complaint_id}/status",
-    responses={404: {"model": ErrorOut}, 409: {"model": ErrorOut}},
+    responses={404: {"model": ErrorOut}, 409: {"model": TransitionErrorOut}},
 )
 async def change_status(
     complaint_id: uuid.UUID, body: StatusUpdate, service: Service
