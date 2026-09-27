@@ -1,11 +1,56 @@
 # CivicPulse
 
+[![CI](https://github.com/M-Hasaam/CivicPulse/actions/workflows/ci.yml/badge.svg)](https://github.com/M-Hasaam/CivicPulse/actions/workflows/ci.yml)
+[![CD](https://github.com/M-Hasaam/CivicPulse/actions/workflows/cd.yml/badge.svg)](https://github.com/M-Hasaam/CivicPulse/actions/workflows/cd.yml)
+[![Security and manifests](https://github.com/M-Hasaam/CivicPulse/actions/workflows/security.yml/badge.svg)](https://github.com/M-Hasaam/CivicPulse/actions/workflows/security.yml)
+[![Compose smoke](https://github.com/M-Hasaam/CivicPulse/actions/workflows/compose-smoke.yml/badge.svg)](https://github.com/M-Hasaam/CivicPulse/actions/workflows/compose-smoke.yml)
+
 Municipal complaint intake, AI triage and operations platform.
 
-A citizen submits a free-text complaint; the backend triages it with an LLM into a
-category, a priority and a one-line summary, persists it, and surfaces it on an
-operations dashboard.
+Every municipality runs the same broken process: a citizen's free-text complaint lands in
+an undifferentiated queue, and a burst water main sits behind three streetlight reports
+because nothing sorted them. CivicPulse reads the text: a citizen submits a free-text
+complaint, the backend triages it with an LLM (or a deterministic fallback) into a
+category, a priority and a one-line summary, persists it durably, and surfaces it on a
+live operations dashboard — as five cooperating containers on a laptop with one command,
+or as a scaled, probed, autoscaling workload on Kubernetes.
 
+## Architecture
+
+```mermaid
+flowchart LR
+    citizen((Citizen)) -->|HTTP| frontend[Frontend<br/>React + nginx]
+    operator((Operator)) -->|HTTP| frontend
+
+    frontend -->|"/api/*"| backend[Backend<br/>FastAPI]
+
+    backend --> postgres[(PostgreSQL 16<br/>complaints)]
+    backend --> redis[(Redis 7<br/>cache + rate limiter)]
+    backend -->|TRIAGE_PROVIDER| triage{Triage provider}
+
+    triage -->|llm| groq[Groq<br/>hosted LLM]
+    triage -->|ollama| ollama[Ollama<br/>offline model]
+    triage -->|rules / simulated| rules[Keyword rules]
+
+    subgraph net[" "]
+        direction LR
+        frontend
+        backend
+    end
+
+    classDef edge fill:#2563eb,color:#fff,stroke:none
+    classDef internal fill:#dc2626,color:#fff,stroke:none
+    classDef ext fill:#6b7280,color:#fff,stroke:none
+    class frontend edge
+    class postgres,redis internal
+    class groq,ollama ext
+```
+
+`frontend` only ever talks to `backend` (nginx proxies `/api` — see
+`docs/adr/0002-frontend-runtime-config.md`); `backend` is the only service with a route to
+both the data layer and the outside world. `postgres` and `redis` have no path to the
+internet or to the frontend — see `compose.yaml`'s network comments and
+`docs/evidence/compose-frontend-cannot-reach-postgres.png` for that proven live.
 
 ## Stack
 
@@ -256,6 +301,17 @@ curl -X POST http://localhost:8000/api/complaints -H "Content-Type: application/
 
 Every response carries an `X-Request-ID` (yours if you send one). Logs are JSON
 on stdout, one line per event, each with that `request_id`.
+
+## Screenshots
+
+| | |
+| --- | --- |
+| ![Frontend](docs/evidence/readme-frontend-ui.png) Frontend, submitting a complaint | ![Compose stack healthy](docs/evidence/compose-stack-healthy.png) Full Compose stack: healthy, migrated, seeded |
+| ![Stats endpoint](docs/evidence/compose-api-stats-200.png) `GET /api/stats` — aggregates, `X-Cache` | ![Complaints endpoint](docs/evidence/compose-api-complaints-200.png) `GET /api/complaints` — seeded data, paginated |
+
+More evidence (branch protection, CI/CD gates blocking a real merge, HPA/VPA load-test
+results, Kubernetes pod-deletion persistence, the merge-conflict resolution) is indexed in
+[`docs/evidence/README.md`](docs/evidence/README.md).
 
 ## Development
 
