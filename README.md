@@ -4,6 +4,7 @@
 [![CD](https://github.com/M-Hasaam/CivicPulse/actions/workflows/cd.yml/badge.svg)](https://github.com/M-Hasaam/CivicPulse/actions/workflows/cd.yml)
 [![Security and manifests](https://github.com/M-Hasaam/CivicPulse/actions/workflows/security.yml/badge.svg)](https://github.com/M-Hasaam/CivicPulse/actions/workflows/security.yml)
 [![Compose smoke](https://github.com/M-Hasaam/CivicPulse/actions/workflows/compose-smoke.yml/badge.svg)](https://github.com/M-Hasaam/CivicPulse/actions/workflows/compose-smoke.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Municipal complaint intake, AI triage and operations platform.
 
@@ -14,6 +15,19 @@ complaint, the backend triages it with an LLM (or a deterministic fallback) into
 category, a priority and a one-line summary, persists it durably, and surfaces it on a
 live operations dashboard — as five cooperating containers on a laptop with one command,
 or as a scaled, probed, autoscaling workload on Kubernetes.
+
+## Contents
+
+- [Architecture](#architecture)
+- [Stack](#stack)
+- [Quickstart (Docker Compose)](#quickstart-docker-compose)
+- [Quickstart (Kubernetes)](#quickstart-kubernetes)
+- [Run without Docker for the app (manual setup)](#run-without-docker-for-the-app-manual-setup)
+- [API](#api)
+- [Screenshots](#screenshots)
+- [Documentation](#documentation)
+- [Development](#development)
+- [License](#license)
 
 ## Architecture
 
@@ -162,6 +176,55 @@ with no mount, no reload and no published database ports:
 If you reuse this repo's `.env` for that command, note that `TRIAGE_PROVIDER`
 is deliberately *not* read by `compose.prod.yaml` - set `PROD_TRIAGE_PROVIDER`
 in your deploy environment instead (defaults to `llm`); see `.env.example`.
+
+## Quickstart (Kubernetes)
+
+The same images run unmodified on Kubernetes — the frontend never has a backend URL baked
+in (see `docs/adr/0002-frontend-runtime-config.md`), so nothing is rebuilt per environment.
+
+### 1. Point `kubectl` at a cluster
+
+Any local cluster works — `kind`, `k3d`, or Docker Desktop's own Kubernetes. For `kind`:
+
+```powershell
+kind create cluster --name civicpulse
+```
+
+### 2. Set a real database password
+
+```powershell
+Copy-Item k8s\overlays\prod\secrets.env.example k8s\overlays\prod\secrets.env
+# edit k8s/overlays/prod/secrets.env and set a real POSTGRES_PASSWORD
+```
+
+`secrets.env` is gitignored; the committed `.example` file only ever has a placeholder.
+
+### 3. Deploy
+
+```powershell
+kubectl apply -k k8s\overlays\prod
+kubectl wait --for=condition=complete job/migrate -n civicpulse --timeout=180s
+kubectl rollout status deployment/backend -n civicpulse --timeout=180s
+kubectl rollout status deployment/frontend -n civicpulse --timeout=180s
+```
+
+Namespace, Deployments, a `StatefulSet` + PVC for Postgres, a `PodDisruptionBudget`, an
+`HorizontalPodAutoscaler` and readiness/liveness/startup probes are all defined in
+`k8s/base/`. Deleting the Postgres pod does not lose data — see
+`docs/evidence/k8s-persistence-1-postgres-pod-deletion.txt`.
+
+### 4. Reach the app
+
+If your cluster doesn't expose an Ingress on the host, port-forward it:
+
+```powershell
+kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 8080:80
+curl -H "Host: civicpulse.localhost" http://127.0.0.1:8080/ready
+```
+
+Full deploy, rollback, log-reading and troubleshooting procedures: `docs/RUNBOOK.md`.
+HPA/VPA load-test results (real measured numbers, not estimates): `docs/evidence/hpa-*` and
+`docs/evidence/vpa-*`.
 
 ## Run without Docker for the app (manual setup)
 
@@ -313,6 +376,17 @@ More evidence (branch protection, CI/CD gates blocking a real merge, HPA/VPA loa
 results, Kubernetes pod-deletion persistence, the merge-conflict resolution) is indexed in
 [`docs/evidence/README.md`](docs/evidence/README.md).
 
+## Documentation
+
+| Document | What's in it |
+| --- | --- |
+| [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Deploy, rollback (imperative and declarative), reading structured logs, diagnosing triage fallbacks |
+| [`docs/ENGINEERING-NOTES.md`](docs/ENGINEERING-NOTES.md) | Environment parity, the CI/CD maturity ladder, build-once-deploy-many, testing a probabilistic component deterministically, HPA lag (measured), VPA vs. HPA, network isolation vs. a hosted LLM, and a real incident |
+| [`docs/TRIAGE.md`](docs/TRIAGE.md) | What each triage provider does, and a measured content-hash cache hit rate |
+| [`docs/AI-USAGE.md`](docs/AI-USAGE.md) | Which parts of this repo AI tools wrote or shaped, and what changed afterward and why |
+| [`docs/adr/`](docs/adr/) | Provider interface · frontend runtime config · deploy-by-SHA · PII and data governance |
+| [`docs/evidence/README.md`](docs/evidence/README.md) | Index of every screenshot/log used as rubric evidence, and what's still outstanding |
+
 ## Development
 
 From `backend/` with the virtualenv active:
@@ -330,3 +404,7 @@ npm run lint
 npm run typecheck
 npm run build
 ```
+
+## License
+
+[MIT](LICENSE) — © 2026 Muhammad Hasaam and Burhan Ahmed.
