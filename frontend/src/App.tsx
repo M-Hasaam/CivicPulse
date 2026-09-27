@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Navbar, type Tab } from './components/Navbar';
+import { SubmitPage } from './pages/SubmitPage';
 
 export function App() {
   const [currentTab, setCurrentTab] = useState<Tab>('submit');
@@ -10,7 +11,7 @@ export function App() {
 
       <main style={{ flex: 1 }}>
         <div className="container" style={{ padding: '2rem 1.5rem' }}>
-          {currentTab === 'submit' && <h2>Submit</h2>}
+          {currentTab === 'submit' && <SubmitPage />}
           {currentTab === 'dashboard' && <h2>Dashboard</h2>}
           {currentTab === 'stats' && <h2>Stats</h2>}
         </div>
