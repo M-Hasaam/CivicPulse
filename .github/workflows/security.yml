@@ -47,7 +47,11 @@ jobs:
             ${{ matrix.image }}
 
   manifests:
-    name: Validate Kubernetes manifests
-    uses: ./.github/workflows/validate-manifests.yml
-    permissions:
-      contents: read
+    name: Kustomize and kubeconform
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate manifests
+        uses: ./.github/actions/validate-manifests

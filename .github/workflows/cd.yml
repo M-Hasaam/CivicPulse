@@ -31,10 +31,16 @@ jobs:
           docker compose --env-file .env.example -f compose.prod.yaml config --quiet
 
   manifests:
-    name: Validate Kubernetes manifests
-    uses: ./.github/workflows/validate-manifests.yml
+    name: Kustomize and kubeconform
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate manifests
+        uses: ./.github/actions/validate-manifests
 
   publish-and-deploy:
     name: Publish GHCR images and deploy to kind
