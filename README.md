@@ -33,16 +33,16 @@ On first start the stack:
 - pulls and warms the Ollama model (~1.3 GB, only once);
 - starts the backend, then the frontend once the backend is healthy.
 
-Open **http://localhost** for the app. The API alone is at http://localhost:8000/docs
-(dev only - see the network table below), and http://localhost:8000/ready reports
-whether Postgres and Redis are reachable.
+Open **http://localhost** for the app. The API docs are at
+http://localhost/docs, and http://localhost/ready reports whether Postgres and
+Redis are reachable through the frontend proxy.
 `docker compose ps -a` should show `migrate`, `seed` and `ollama-pull` as `Exited (0)`
 and every other service `healthy`.
 
 | Service | Network | Notes |
 | --- | --- | --- |
 | `frontend` | edge | nginx (non-root), the only service reachable from the host in prod; port 80 |
-| `backend` | edge + internal + llm | port 8000 published in dev only, for direct API access |
+| `backend` | edge + internal + llm | exposed only to the frontend proxy on port 8000 |
 | `postgres` | internal | volume `pgdata`; no published port |
 | `redis` | internal | volume `redisdata`, AOF persistence; no published port |
 | `ollama` | llm + models | volume `ollama_models`; `models` only lets it download weights |
