@@ -82,6 +82,25 @@ async def test_openapi_documents_400_and_not_422() -> None:
     assert "400" in post and "422" not in post
 
 
+async def test_openapi_409_schema_matches_the_fields_the_route_actually_returns(
+    api: Api,
+) -> None:
+    """A generated client must be able to type current_status/attempted_status,
+    not just the bare `detail` string ErrorOut alone would document."""
+    app.openapi_schema = None  # force a fresh build against the current routes
+    schema = app.openapi()
+    patch = schema["paths"]["/api/complaints/{complaint_id}/status"]["patch"]
+    ref = patch["responses"]["409"]["content"]["application/json"]["schema"]["$ref"]
+    schema_name = ref.rsplit("/", 1)[-1]
+    documented_fields = set(schema["components"]["schemas"][schema_name]["properties"])
+
+    created = (await api.client.post("/api/complaints", json=VALID)).json()
+    conflict = await api.client.patch(
+        f"/api/complaints/{created['id']}/status", json={"status": "resolved"}
+    )
+    assert set(conflict.json()) <= documented_fields
+
+
 # --- the brief's must-have: a failing provider never costs the citizen a 500 --------------
 
 
