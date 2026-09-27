@@ -53,24 +53,48 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 alembic upgrade head             # create the schema (never done at app startup)
-python -m app.seed               # 30 demo complaints; safe to run again
+python -m app.seed               # 32 demo complaints; safe to run again
 python -m uvicorn app.main:app --reload
 ```
 
 On macOS/Linux, activate with `source .venv/bin/activate` instead.
 
-| URL | Purpose |
-| --- | --- |
-| http://localhost:8000/ | Hello endpoint |
-| http://localhost:8000/health | Liveness probe (never touches the database) |
-| http://localhost:8000/ready | Readiness probe: 200 when Postgres and Redis are reachable, 503 naming what failed otherwise |
-| http://localhost:8000/metrics | Prometheus metrics |
-| http://localhost:8000/docs | Interactive OpenAPI docs |
+Open http://localhost:8000/docs for the interactive API.
+
+## API
+
+| Method | Path | Behaviour |
+| --- | --- | --- |
+| `POST` | `/api/complaints` | Validate, triage, persist. **201**; **400** with field-level errors; **429** with `Retry-After` over the rate limit |
+| `GET` | `/api/complaints/{id}` | **200** / **404** |
+| `GET` | `/api/complaints` | Filter by `category`, `priority`, `status`; paginate with `page`, `page_size` (≤ 100); returns `total` |
+| `PATCH` | `/api/complaints/{id}/status` | Enforces the state machine; invalid transition → **409** naming it |
+| `GET` | `/api/stats` | Counts by category, priority and status; Redis-cached 30 s; `X-Cache: HIT \| MISS` (`BYPASS` if Redis is down) |
+| `GET` | `/api/meta/providers` | Active provider, last 20 triage outcomes (provider, latency, fallback, cached) and the triage cache hit rate |
+| `GET` | `/health` | Liveness: process alive, never touches a dependency |
+| `GET` | `/ready` | Readiness: 200 only if Postgres and Redis answer; 503 naming what failed |
+| `GET` | `/metrics` | Prometheus: request count and latency, triage latency, fallbacks, triage cache hits |
+
+**Status machine:** `open → in_progress → resolved`, `open → rejected`,
+`in_progress → rejected`. `resolved` and `rejected` are final.
+
+**Triage:** `TRIAGE_PROVIDER` selects `llm` (Groq), `ollama`, `rules` or
+`simulated`. Any provider failure (timeout, 429, 5xx, malformed output) falls
+back to the keyword rules and is recorded as `triaged_by = rules:fallback`.
+Duplicate complaints are served from a 24 h content-hash cache.
+
+```powershell
+curl -X POST http://localhost:8000/api/complaints -H "Content-Type: application/json" `
+  -d '{"text": "Burst water main flooding Street 12 since fajr", "location": "G-10/4"}'
+```
+
+Every response carries an `X-Request-ID` (yours if you send one). Logs are JSON
+on stdout, one line per event, each with that `request_id`.
 
 ### Lint, type-check and test
 
 ```powershell
 ruff check .
 mypy app
-pytest
+pytest --cov=app        # tests never call a live LLM
 ```
