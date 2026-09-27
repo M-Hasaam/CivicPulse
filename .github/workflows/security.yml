@@ -1,0 +1,69 @@
+﻿name: Security and manifests
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    name: Trivy image scan
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: civicpulse-backend:ci
+            context: backend
+          - image: civicpulse-frontend:ci
+            context: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build image for scanning
+        run: docker build --pull -t ${{ matrix.image }} ${{ matrix.context }}
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ matrix.image }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          vuln-type: os,library
+          exit-code: '1'
+          format: table
+
+  manifests:
+    name: Kustomize and kubeconform
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+
+      - name: Render production manifests
+        run: kubectl kustomize k8s/overlays/prod > rendered-prod.yaml
+
+      - name: Validate manifests with kubeconform
+        uses: docker://ghcr.io/yannh/kubeconform:v0.6.7
+        with:
+          entrypoint: /kubeconform
+          args: >-
+            -strict
+            -summary
+            -ignore-missing-schemas
+            rendered-prod.yaml
