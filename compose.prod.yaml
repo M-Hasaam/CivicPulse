@@ -85,7 +85,11 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
       RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-10}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
-      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      # Hardcoded, not read from .env: this file always runs behind the frontend's
+      # nginx (the only proxy in this topology), so the trusted-hop count is a fact
+      # about this deployment, not a per-environment setting. The same reasoning as
+      # compose.yaml's dev backend service.
+      TRUSTED_PROXY_HOPS: "1"
     expose:
       - "8000"  # reachable by the frontend on 'edge'; not published on the host
     networks: [edge, internal, llm]

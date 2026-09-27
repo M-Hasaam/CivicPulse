@@ -92,13 +92,19 @@ def _request(headers: dict[str, str], client: tuple[str, int] | None) -> rate_li
     return rate_limiter.Request(scope)
 
 
-def test_client_identifier_trusts_only_the_entry_our_proxy_appended() -> None:
+def test_client_identifier_trusts_only_the_entry_our_proxy_appended(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_HOPS", 1)
     # nginx appended 203.0.113.7 (the real client); "6.6.6.6" was typed by the client
     request = _request({"X-Forwarded-For": "6.6.6.6, 203.0.113.7"}, ("172.18.0.5", 5000))
     assert rate_limiter.client_identifier(request) == "203.0.113.7"
 
 
-def test_client_identifier_ignores_any_number_of_spoofed_entries() -> None:
+def test_client_identifier_ignores_any_number_of_spoofed_entries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_HOPS", 1)
     request = _request({"X-Forwarded-For": "1.1.1.1, 2.2.2.2, 3.3.3.3, 203.0.113.7"}, None)
     assert rate_limiter.client_identifier(request) == "203.0.113.7"
 
@@ -138,6 +144,11 @@ def test_client_identifier_falls_back_to_the_socket_address() -> None:
 async def api(redis: Redis, monkeypatch: pytest.MonkeyPatch) -> httpx.AsyncClient:
     monkeypatch.setattr(settings, "RATE_LIMIT_MAX_REQUESTS", 3)
     monkeypatch.setattr(settings, "RATE_LIMIT_WINDOW_SECONDS", 60)
+    # These tests are all about requests arriving through our trusted proxy
+    # (that's the whole point of the X-Forwarded-For headers they send) - the
+    # no-proxy case (TRUSTED_PROXY_HOPS=0, the app's default) is covered
+    # separately by the client_identifier unit tests above.
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_HOPS", 1)
 
     app = FastAPI()
     app.dependency_overrides[get_redis] = lambda: redis
