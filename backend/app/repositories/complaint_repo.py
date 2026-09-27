@@ -2,7 +2,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import Select, func, select, text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain import Category, Priority, Status
@@ -13,6 +13,11 @@ from app.repositories.models import ComplaintModel
 # retrying, or a script) could each block indefinitely while holding a pooled
 # connection, exhausting the pool with nothing ever timing out.
 LOCK_TIMEOUT_SECONDS = 5
+
+# Postgres SQLSTATE for "lock_not_available" - exactly what SET LOCAL lock_timeout
+# produces. Checked explicitly so an unrelated DBAPIError (a dropped connection, a
+# constraint violation) is never misreported as a retryable lock timeout.
+_LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
 
 
 class ComplaintLockTimeoutError(Exception):
@@ -60,8 +65,14 @@ class ComplaintRepository:
         await self.session.execute(text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT_SECONDS}s'"))
         try:
             return await self.session.scalar(self._for_update_statement(complaint_id))
-        except OperationalError as exc:
-            raise ComplaintLockTimeoutError(complaint_id) from exc
+        except DBAPIError as exc:
+            # asyncpg/SQLAlchemy wraps a cancelled-by-lock-timeout query as a plain
+            # DBAPIError, not OperationalError - check the actual Postgres SQLSTATE
+            # rather than the Python exception class.
+            sqlstate = getattr(exc.orig, "sqlstate", None)
+            if sqlstate == _LOCK_NOT_AVAILABLE_SQLSTATE:
+                raise ComplaintLockTimeoutError(complaint_id) from exc
+            raise
 
     @staticmethod
     def _for_update_statement(complaint_id: uuid.UUID) -> Select[ComplaintModel]:

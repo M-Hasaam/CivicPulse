@@ -69,6 +69,29 @@ async def test_invalidate_moves_readers_to_a_new_key_rather_than_deleting_in_pla
     assert key_before != key_after
 
 
+async def test_current_stats_key_degrades_to_generation_0_on_a_bad_version(
+    redis: Redis,
+) -> None:
+    """A manual redis-cli mistake setting the version to something non-numeric
+    must not crash get_stats - fall back to generation 0 instead."""
+    await redis.set(stats_cache.STATS_VERSION_KEY, "not-a-number")
+    assert await stats_cache.current_stats_key(redis) == f"{stats_cache.STATS_KEY_PREFIX}:0"
+
+    stats, state = await stats_cache.get_stats(redis, Loader())
+    assert state == stats_cache.MISS  # answered, not crashed
+
+
+async def test_a_corrupted_stats_entry_is_a_miss_not_a_crash(redis: Redis) -> None:
+    key = await stats_cache.current_stats_key(redis)
+    await redis.set(key, "not valid json{{{")
+
+    loader = Loader()
+    stats, state = await stats_cache.get_stats(redis, loader)
+    assert state == stats_cache.MISS
+    assert stats == {"total_complaints": 31}  # recomputed via the loader, not a crash
+    assert loader.calls == 1
+
+
 async def test_a_read_already_in_flight_when_invalidated_cannot_resurrect_stale_data(
     redis: Redis,
 ) -> None:
