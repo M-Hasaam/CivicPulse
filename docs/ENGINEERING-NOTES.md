@@ -79,17 +79,41 @@ CI itself stays fully deterministic by never calling a real model at all:
 (`providers/triage/simulated.py`), a seeded fake with injectable failure — so the test suite's
 pass/fail is a function of the code, never of what a hosted model answers on a given run.
 
-## 5. HPA lag 🔴 needs the local load-test capture
+## 5. HPA lag
 
-Not answerable yet — this needs a real `kubectl get hpa -w` run against a live local cluster
-under generated load (k6/hey), which hadn't been executed at the time of writing (the
-manifest side — `k8s/base/hpa.yaml`, `pdb.yaml`, `vpa.yaml`, metrics-server install in
-`cd.yml` — is built and verified; the load-test session itself is the remaining step). **TODO
-once that run happens:** fill in the observed seconds between load rising and `REPLICAS`
-rising in the `-w` capture, and attribute the lag across: metrics-server's scrape interval,
-the HPA controller's own sync period (default 15s), and pod scheduling + image pull +
-`startupProbe` time (`backend.yaml`'s `failureThreshold: 30 × periodSeconds: 2` = up to 60s
-grace before a slow-booting pod even counts as live).
+Measured on a local persistent `kind` cluster (not the ephemeral one `cd.yml` uses), with
+metrics-server installed and a k6 load test ramping 1→40 VUs against `GET
+/api/complaints?page=1&page_size=50` (chosen deliberately over `/api/stats`, since stats is
+Redis-cached with a 30s TTL and wouldn't generate sustained CPU work — see
+`docs/evidence/hpa-3-k6-load-test-summary.txt`). Full data: `docs/evidence/hpa-1-replicas-vs-load-chart.png`
+(the chart), `docs/evidence/hpa-2-kubectl-get-hpa-watch-output.txt` (the raw `-w` capture),
+`docs/evidence/hpa-4-scaling-events.txt` (exact `kubectl get events` timestamps).
+
+**Lag observed: 42 seconds** from load test start (k6 launched, VUs beginning to ramp from 1)
+to the HPA's actual rescale decision (`SuccessfulRescale: New size: 5`, confirmed via
+`kubectl get events`). Backend CPU utilization crossed the 70% target within ~20-25s of load
+starting (23% at +12s, 179% at +27s) — the remaining ~15-20s is the HPA controller's own
+sync/decision period (default 15s) plus one more metrics-server scrape cycle before the
+controller acts on the new number.
+
+**Honest caveat this run surfaced, not hidden:** replicas were already at 4 (not the
+`minReplicas: 2` floor) when this test started, left over from an earlier, unrelated CPU
+burst during manifest debugging — so this measures "4→5 under added load," not a clean
+"2→N from a cold baseline." More strikingly: CPU utilization spiked to **300-400% of the 70%
+target** within under a minute at only ~10-15 concurrent VUs, and the HPA hit `maxReplicas: 5`
+almost immediately and stayed pinned there for the rest of the high-load period (see the
+chart) — meaning **`k8s/base/backend.yaml`'s `resources.requests.cpu: 100m` is significantly
+undersized** for this endpoint's real per-request cost. That's not a measurement error, it's
+the actual finding: the VPA loop in question 6 exists to catch precisely this, and the next
+step (documented there) is using its recommendation to correct this same `100m` value.
+
+Where the 42s actually went, in order: metrics-server's own scrape interval (default 15s) →
+CPU genuinely crossing 70% (~20-25s from load onset, per the readings above) → the HPA
+controller's next sync cycle picking that up and issuing the rescale (default 15s sync
+period, so up to one more cycle). Pod scheduling/image-pull/`startupProbe` time was *not* a
+factor in this particular measurement, since the target pods already existed and just needed
+new replicas scheduled on an already-warm node — a scale-out from zero (e.g. after a crash)
+would add that startup cost on top.
 
 ## 6. Why VPA runs in `Off` mode, and the Auto-mode conflict with HPA
 
