@@ -1,256 +1,335 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, BarChart3, RefreshCw, Server, Zap } from 'lucide-react';
-import { ApiError, getProviderMeta, getStats, type ProviderMeta, type StatsOut } from '../api/client';
+import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw, Zap, BarChart2, Activity, Clock, Database } from 'lucide-react';
+import {
+  type ProviderMeta,
+  type StatsOut,
+  getProviderMeta,
+  getStats,
+} from '../api/client';
 import './StatsPage.css';
 
-const CATEGORY_LABELS: Record<string, string> = {
-  water: 'Water',
-  electricity: 'Electricity',
-  sanitation: 'Sanitation',
-  roads: 'Roads',
-  streetlights: 'Streetlights',
-  other: 'Other',
+// ─── Cache badge ────────────────────────────────────────────────────────────
+
+function CacheBadge({
+  state,
+  loading,
+  lastRefreshed,
+  onRefresh,
+}: {
+  state: string;
+  loading: boolean;
+  lastRefreshed: Date | null;
+  onRefresh: () => void;
+}) {
+  const isHit = state === 'HIT';
+  const isMiss = state === 'MISS';
+
+  return (
+    <div className="cache-badge-row">
+      <div className={`cache-badge ${isHit ? 'cache-hit' : isMiss ? 'cache-miss' : 'cache-unknown'}`}>
+        <span className="cache-dot" />
+        <span className="cache-label">X-Cache</span>
+        <span className="cache-value">{state}</span>
+      </div>
+
+      {lastRefreshed && (
+        <span className="cache-timestamp">
+          Last fetched {lastRefreshed.toLocaleTimeString()}
+        </span>
+      )}
+
+      <button
+        type="button"
+        className="btn btn-secondary stats-refresh-btn"
+        onClick={onRefresh}
+        disabled={loading}
+      >
+        <RefreshCw size={13} className={loading ? 'spinner' : ''} />
+        Refresh stats
+      </button>
+    </div>
+  );
+}
+
+// ─── Stat card ───────────────────────────────────────────────────────────────
+
+function StatCard({
+  icon,
+  label,
+  value,
+  sub,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  sub?: string;
+}) {
+  return (
+    <div className="stat-card">
+      <div className="stat-card-icon">{icon}</div>
+      <div>
+        <p className="stat-card-value">{value}</p>
+        <p className="stat-card-label">{label}</p>
+        {sub && <p className="stat-card-sub">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Breakdown bar ───────────────────────────────────────────────────────────
+
+const BREAKDOWN_COLORS: Record<string, string> = {
+  // categories
+  water: '#60a5fa',
+  electricity: '#fde047',
+  sanitation: '#86efac',
+  roads: '#fdba74',
+  streetlights: '#d8b4fe',
+  other: '#9ca3af',
+  // priorities
+  high: '#fca5a5',
+  normal: '#fcd34d',
+  low: '#93c5fd',
+  // statuses
+  open: '#60a5fa',
+  in_progress: '#fbbf24',
+  resolved: '#34d399',
+  rejected: '#f87171',
 };
 
-const PRIORITY_LABELS: Record<string, string> = {
-  high: 'High',
-  normal: 'Normal',
-  low: 'Low',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  open: 'Open',
-  in_progress: 'In Progress',
-  resolved: 'Resolved',
-  rejected: 'Rejected',
-};
-
-interface StatsState {
-  stats: StatsOut;
-  cacheState: string;
-}
-
-function labelFor(map: Record<string, string>, key: string): string {
-  return map[key] ?? key.replaceAll('_', ' ');
-}
-
-function pct(value: number, total: number): number {
-  if (total <= 0) return 0;
-  return Math.round((value / total) * 100);
-}
-
-function formatLatency(ms: number): string {
-  if (!Number.isFinite(ms)) return '0 ms';
-  return `${Math.round(ms).toLocaleString()} ms`;
-}
-
-function formatRate(value: number | null): string {
-  if (value === null) return 'No lookups yet';
-  return `${Math.round(value * 100)}%`;
-}
-
-function CountBars({
+function BreakdownChart({
   title,
-  values,
-  labels,
+  data,
+  total,
 }: {
   title: string;
-  values: Record<string, number>;
-  labels: Record<string, string>;
+  data: Record<string, number>;
+  total: number;
 }) {
-  const total = Object.values(values).reduce((sum, value) => sum + value, 0);
-  const rows = Object.entries(values).sort((a, b) => b[1] - a[1]);
+  const entries = Object.entries(data).sort(([, a], [, b]) => b - a);
 
   return (
-    <section className="stats-panel" aria-label={title}>
-      <h3>{title}</h3>
-      {rows.length === 0 ? (
-        <p className="stats-empty">No data yet</p>
-      ) : (
-        <div className="stats-bars">
-          {rows.map(([key, value]) => {
-            const width = pct(value, total);
-            return (
-              <div className="stats-bar-row" key={key}>
-                <div className="stats-bar-label">
-                  <span>{labelFor(labels, key)}</span>
-                  <strong>{value.toLocaleString()}</strong>
-                </div>
-                <div className="stats-bar-track" aria-hidden="true">
-                  <div className="stats-bar-fill" style={{ width: `${width}%` }} />
-                </div>
-                <span className="stats-bar-pct">{width}%</span>
+    <div className="breakdown-chart">
+      <p className="breakdown-title">{title}</p>
+      <div className="breakdown-rows">
+        {entries.map(([key, count]) => {
+          const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+          const color = BREAKDOWN_COLORS[key] ?? '#6b7280';
+          return (
+            <div key={key} className="breakdown-row">
+              <span className="breakdown-key">{key.replace('_', ' ')}</span>
+              <div className="breakdown-bar-track">
+                <div
+                  className="breakdown-bar-fill"
+                  style={{ width: `${pct}%`, background: color }}
+                />
               </div>
-            );
-          })}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function RecentOutcomes({ meta }: { meta: ProviderMeta }) {
-  const recent = meta.recent_outcomes.slice(0, 6);
-  return (
-    <section className="stats-panel" aria-label="Recent triage outcomes">
-      <h3>Recent triage outcomes</h3>
-      {recent.length === 0 ? (
-        <p className="stats-empty">No triage calls recorded yet</p>
-      ) : (
-        <div className="outcome-list">
-          {recent.map((outcome, index) => (
-            <div className="outcome-row" key={`${outcome.at}-${index}`}>
-              <div>
-                <strong>{outcome.provider}</strong>
-                <span>{new Date(outcome.at).toLocaleString()}</span>
-              </div>
-              <div className="outcome-meta">
-                <span>{formatLatency(outcome.latency_ms)}</span>
-                {outcome.cached && <span className="cache-pill cache-hit">cached</span>}
-                {outcome.fallback && <span className="cache-pill cache-bypass">fallback</span>}
-              </div>
+              <span className="breakdown-count">{count}</span>
+              <span className="breakdown-pct">{pct}%</span>
             </div>
-          ))}
-        </div>
-      )}
-    </section>
+          );
+        })}
+      </div>
+    </div>
   );
 }
+
+// ─── Provider panel ──────────────────────────────────────────────────────────
+
+function ProviderPanel({ meta }: { meta: ProviderMeta }) {
+  const { hits, misses, hit_rate } = meta.triage_cache;
+  const hitRatePct = hit_rate != null ? `${(hit_rate * 100).toFixed(1)}%` : 'N/A';
+
+  return (
+    <div className="provider-panel">
+      <p className="provider-title">
+        <Activity size={14} /> Triage Provider
+      </p>
+
+      <div className="provider-meta-grid">
+        <div className="provider-meta-item">
+          <span className="provider-meta-label">Active</span>
+          <span className="provider-meta-value mono">{meta.active_provider}</span>
+        </div>
+        <div className="provider-meta-item">
+          <span className="provider-meta-label">Fallback</span>
+          <span className="provider-meta-value mono">{meta.fallback_provider}</span>
+        </div>
+        <div className="provider-meta-item">
+          <span className="provider-meta-label">Cache hits</span>
+          <span className="provider-meta-value">{hits}</span>
+        </div>
+        <div className="provider-meta-item">
+          <span className="provider-meta-label">Cache misses</span>
+          <span className="provider-meta-value">{misses}</span>
+        </div>
+        <div className="provider-meta-item">
+          <span className="provider-meta-label">Hit rate</span>
+          <span className={`provider-meta-value ${hit_rate != null && hit_rate >= 0.5 ? 'text-success' : 'text-warning'}`}>
+            {hitRatePct}
+          </span>
+        </div>
+      </div>
+
+      {meta.recent_outcomes.length > 0 && (
+        <>
+          <p className="provider-outcomes-label">Recent triage outcomes</p>
+          <div className="provider-outcomes-table-wrap">
+            <table className="provider-outcomes-table">
+              <thead>
+                <tr>
+                  <th>Provider</th>
+                  <th>Latency</th>
+                  <th>Cached</th>
+                  <th>Fallback</th>
+                  <th>At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {meta.recent_outcomes.slice(0, 20).map((o, i) => (
+                  <tr key={i}>
+                    <td className="mono">{o.provider}</td>
+                    <td>{o.latency_ms.toLocaleString()} ms</td>
+                    <td>
+                      <span className={`outcome-pill ${o.cached ? 'pill-hit' : 'pill-miss'}`}>
+                        {o.cached ? 'HIT' : 'MISS'}
+                      </span>
+                    </td>
+                    <td>
+                      {o.fallback ? (
+                        <span className="outcome-pill pill-warning">Yes</span>
+                      ) : (
+                        <span className="outcome-pill pill-ok">No</span>
+                      )}
+                    </td>
+                    <td className="outcome-at">
+                      {new Date(o.at).toLocaleTimeString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── StatsPage ───────────────────────────────────────────────────────────────
 
 export function StatsPage() {
-  const [statsState, setStatsState] = useState<StatsState | null>(null);
+  const [stats, setStats] = useState<StatsOut | null>(null);
+  const [cacheState, setCacheState] = useState<string>('UNKNOWN');
   const [providerMeta, setProviderMeta] = useState<ProviderMeta | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
-  const loadStats = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [statsResult, metaResult] = await Promise.all([getStats(), getProviderMeta()]);
-      setStatsState(statsResult);
-      setProviderMeta(metaResult);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to load stats. Please try again.');
+      const [{ stats: s, cacheState: cs }, meta] = await Promise.all([
+        getStats(),
+        getProviderMeta(),
+      ]);
+      setStats(s);
+      // X-Cache header: HIT means Redis served the response, MISS means it
+      // was freshly computed. This is a key portfolio differentiator per the brief.
+      setCacheState(cs);
+      setProviderMeta(meta);
+      setLastRefreshed(new Date());
+    } catch {
+      setError('Failed to load statistics. Please try again.');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    void loadStats();
-  }, [loadStats]);
-
-  const cacheClass = useMemo(() => {
-    const value = statsState?.cacheState.toUpperCase();
-    if (value === 'HIT') return 'cache-hit';
-    if (value === 'MISS') return 'cache-miss';
-    if (value === 'BYPASS') return 'cache-bypass';
-    return 'cache-unknown';
-  }, [statsState?.cacheState]);
+  useEffect(() => { void fetchAll(); }, [fetchAll]);
 
   return (
     <div className="stats-page">
+
+      {/* ── Header ─────────────────────────────── */}
       <div className="dashboard-header">
         <div>
           <h2 className="dashboard-title">Statistics</h2>
-          <p className="dashboard-subtitle">
-            Aggregate complaint counts, cache state and triage provider health.
-          </p>
+          <p className="dashboard-subtitle">Aggregate complaint metrics and triage intelligence</p>
         </div>
-        <button
-          id="stats-refresh-btn"
-          type="button"
-          className="btn btn-secondary dashboard-refresh-btn"
-          onClick={() => void loadStats()}
-          disabled={loading}
-        >
-          <RefreshCw size={14} className={loading ? 'spinner' : ''} />
-          Refresh
-        </button>
       </div>
 
+      {/* ── X-Cache badge (portfolio differentiator) ── */}
+      <CacheBadge
+        state={cacheState}
+        loading={loading}
+        lastRefreshed={lastRefreshed}
+        onRefresh={() => void fetchAll()}
+      />
+
+      {/* ── Error ──────────────────────────────── */}
       {error && <div role="alert" className="dashboard-error">{error}</div>}
 
-      {loading && !statsState && (
-        <div className="skeleton-list" aria-label="Loading statistics">
+      {/* ── Loading ────────────────────────────── */}
+      {loading && !stats && (
+        <div className="skeleton-list">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="skeleton-row" style={{ opacity: 1 - i * 0.12 }} />
+            <div key={i} className="skeleton-row" style={{ height: '80px', opacity: 1 - i * 0.15 }} />
           ))}
         </div>
       )}
 
-      {statsState && (
+      {stats && (
         <>
-          <section className="stats-summary-grid" aria-label="Stats summary">
-            <div className="stats-summary-card">
-              <BarChart3 size={18} />
-              <span>Total complaints</span>
-              <strong>{statsState.stats.total_complaints.toLocaleString()}</strong>
-            </div>
-            <div className="stats-summary-card">
-              <Activity size={18} />
-              <span>Average triage latency</span>
-              <strong>{formatLatency(statsState.stats.avg_triage_latency_ms)}</strong>
-            </div>
-            <div className="stats-summary-card">
-              <Zap size={18} />
-              <span>Stats cache</span>
-              <strong className={`cache-pill ${cacheClass}`}>{statsState.cacheState}</strong>
-            </div>
-            <div className="stats-summary-card">
-              <Server size={18} />
-              <span>Active provider</span>
-              <strong>{providerMeta?.active_provider ?? 'Unknown'}</strong>
-            </div>
-          </section>
-
-          <div className="stats-grid">
-            <CountBars
-              title="By category"
-              values={statsState.stats.by_category}
-              labels={CATEGORY_LABELS}
+          {/* ── Summary stat cards ─────────────── */}
+          <div className="stat-cards-grid">
+            <StatCard
+              icon={<BarChart2 size={18} />}
+              label="Total complaints"
+              value={stats.total_complaints.toLocaleString()}
             />
-            <CountBars
-              title="By priority"
-              values={statsState.stats.by_priority}
-              labels={PRIORITY_LABELS}
+            <StatCard
+              icon={<Clock size={18} />}
+              label="Avg triage latency"
+              value={`${stats.avg_triage_latency_ms.toLocaleString()} ms`}
+              sub="across all AI providers"
             />
-            <CountBars
-              title="By status"
-              values={statsState.stats.by_status}
-              labels={STATUS_LABELS}
+            <StatCard
+              icon={<Zap size={18} />}
+              label="Open"
+              value={(stats.by_status['open'] ?? 0).toLocaleString()}
+              sub="awaiting action"
             />
-            {providerMeta && (
-              <section className="stats-panel" aria-label="Provider and triage cache">
-                <h3>Provider and triage cache</h3>
-                <dl className="meta-list">
-                  <div>
-                    <dt>Active provider</dt>
-                    <dd>{providerMeta.active_provider}</dd>
-                  </div>
-                  <div>
-                    <dt>Fallback provider</dt>
-                    <dd>{providerMeta.fallback_provider}</dd>
-                  </div>
-                  <div>
-                    <dt>Triage cache hits</dt>
-                    <dd>{providerMeta.triage_cache.hits.toLocaleString()}</dd>
-                  </div>
-                  <div>
-                    <dt>Triage cache misses</dt>
-                    <dd>{providerMeta.triage_cache.misses.toLocaleString()}</dd>
-                  </div>
-                  <div>
-                    <dt>Triage hit rate</dt>
-                    <dd>{formatRate(providerMeta.triage_cache.hit_rate)}</dd>
-                  </div>
-                </dl>
-              </section>
-            )}
+            <StatCard
+              icon={<Database size={18} />}
+              label="Resolved"
+              value={(stats.by_status['resolved'] ?? 0).toLocaleString()}
+              sub="completed"
+            />
           </div>
 
-          {providerMeta && <RecentOutcomes meta={providerMeta} />}
+          {/* ── Breakdowns ─────────────────────── */}
+          <div className="breakdowns-grid">
+            <BreakdownChart
+              title="By category"
+              data={stats.by_category}
+              total={stats.total_complaints}
+            />
+            <BreakdownChart
+              title="By priority"
+              data={stats.by_priority}
+              total={stats.total_complaints}
+            />
+            <BreakdownChart
+              title="By status"
+              data={stats.by_status}
+              total={stats.total_complaints}
+            />
+          </div>
+
+          {/* ── Provider panel ─────────────────── */}
+          {providerMeta && <ProviderPanel meta={providerMeta} />}
         </>
       )}
     </div>
