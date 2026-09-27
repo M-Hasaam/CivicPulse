@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, SlidersHorizontal } from 'lucide-react';
 import {
   ApiConflictError,
