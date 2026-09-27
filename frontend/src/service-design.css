@@ -474,3 +474,312 @@ button:focus-visible {
 .complaints-table td {
   line-height: 1.6;
 }
+/* Theme surfaces are shared by the citizen and operations workspaces. */
+:root {
+  color-scheme: light;
+  --surface: #ffffff;
+  --surface-soft: #f0f4ec;
+  --input-surface: #fcfdfa;
+  --accent-soft: #eaf1e8;
+  --tip-surface: #eaf0df;
+  --accent-ink: #236449;
+  --ambient: #a2c69a;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-primary: #101916;
+  --bg-secondary: #19251f;
+  --bg-card: #19251f;
+  --bg-card-hover: #233229;
+  --surface: #19251f;
+  --surface-soft: #223129;
+  --input-surface: #141f19;
+  --accent-soft: #283e30;
+  --tip-surface: #253525;
+  --border-color: #35453a;
+  --text-primary: #edf3e9;
+  --text-secondary: #bac8bc;
+  --text-muted: #a0b1a4;
+  --primary: #a9c990;
+  --primary-hover: #bedba9;
+  --primary-glow: rgba(169, 201, 144, 0.15);
+  --accent-ink: #152918;
+  --success: #8dd6ab;
+  --danger: #ffa7a0;
+  --warning: #e9c777;
+  --info: #99c4ed;
+  --ambient: #477448;
+  --shadow-md: 0 6px 28px rgba(0, 0, 0, 0.12);
+}
+body {
+  isolation: isolate;
+}
+main,
+footer {
+  position: relative;
+  z-index: 1;
+}
+.navbar {
+  background: var(--surface);
+}
+.report-panel,
+.glass-card,
+.filter-panel,
+.table-empty,
+.stat-card,
+.breakdown-chart,
+.provider-panel,
+.complaints-table-wrap,
+.custom-select-dropdown,
+.action-select-dropdown,
+.skip-link {
+  background: var(--surface);
+  border-color: var(--border-color);
+}
+.form-input,
+.form-textarea,
+.form-select {
+  background: var(--input-surface);
+  border-color: var(--border-color);
+}
+.form-input::placeholder,
+.form-textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+.nav-link.active,
+.section-icon,
+.stat-card-icon {
+  background: var(--accent-soft);
+  color: var(--primary);
+  border-color: var(--border-color);
+}
+.nav-link:hover,
+.btn-secondary:hover:not(:disabled),
+.stat-card:hover {
+  background: var(--surface-soft);
+  border-color: var(--border-color);
+}
+.location-tip {
+  background: var(--tip-surface);
+  border-color: var(--border-color);
+}
+.step-number {
+  border-color: var(--border-color);
+}
+.process-list li:not(:last-child)::before,
+.breakdown-bar-track {
+  background: var(--border-color);
+}
+.report-panel > [role="status"] {
+  background: var(--accent-soft);
+}
+.btn-primary,
+.brand-mark {
+  color: var(--accent-ink);
+}
+:root[data-theme="light"] .btn-primary,
+:root[data-theme="light"] .brand-mark {
+  color: white;
+}
+.theme-picker {
+  display: flex;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  border-radius: 24px;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.theme-picker button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  border-radius: 50%;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.theme-picker button:hover {
+  color: var(--primary);
+}
+.theme-picker button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: 0 1px 5px #00000012;
+}
+.ambient-background {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+.ambient-background span {
+  position: absolute;
+  width: 620px;
+  height: 620px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--ambient), transparent 68%);
+  opacity: 0.16;
+  animation: ambient-drift 28s ease-in-out infinite alternate;
+}
+.ambient-background span:nth-child(1) {
+  top: -180px;
+  right: -180px;
+}
+.ambient-background span:nth-child(2) {
+  bottom: -320px;
+  left: -170px;
+  animation-delay: -14s;
+}
+.ambient-background span:nth-child(3) {
+  top: 28%;
+  right: 12%;
+  width: 440px;
+  height: 440px;
+  opacity: 0.07;
+  animation-delay: -7s;
+}
+@keyframes ambient-drift {
+  from {
+    transform: translate3d(-20px, -20px, 0) scale(0.9);
+  }
+  to {
+    transform: translate3d(45px, 35px, 0) scale(1.12);
+  }
+}
+.page-intro {
+  position: relative;
+  padding-left: 22px;
+  border-left: 2px solid var(--primary);
+}
+.report-panel {
+  box-shadow: var(--shadow-md);
+}
+.report-heading {
+  background: linear-gradient(110deg, var(--surface), var(--surface-soft));
+}
+.btn-primary {
+  transition:
+    background 0.2s,
+    box-shadow 0.2s;
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 16px var(--primary-glow);
+}
+:root[data-theme="dark"]
+  :is(
+    .badge-high,
+    .priority-high,
+    .status-rejected,
+    .cache-miss,
+    .pill-miss,
+    .toast-error,
+    .dashboard-error
+  ) {
+  color: var(--danger);
+}
+:root[data-theme="dark"]
+  :is(
+    .badge-normal,
+    .priority-normal,
+    .status-in-progress,
+    .cat-electricity,
+    .pill-warning,
+    .text-warning
+  ) {
+  color: var(--warning);
+}
+:root[data-theme="dark"]
+  :is(
+    .status-resolved,
+    .badge-resolved,
+    .cat-sanitation,
+    .cache-hit,
+    .pill-hit,
+    .pill-ok,
+    .text-success,
+    .toast-success
+  ) {
+  color: var(--success);
+}
+:root[data-theme="dark"]
+  :is(.badge-low, .priority-low, .status-open, .cat-water) {
+  color: var(--info);
+}
+:root[data-theme="dark"] .cat-streetlights {
+  color: #d3b4ee;
+}
+:root[data-theme="dark"] .cat-roads {
+  color: #efb28d;
+}
+:root[data-theme="dark"] .cat-other {
+  color: var(--text-secondary);
+}
+:root[data-theme="dark"]
+  :is(
+    .custom-select-option.selected,
+    .action-select-option:hover,
+    .action-select-trigger:hover,
+    .action-select-trigger.open,
+    .action-select-icon,
+    .custom-select-check
+  ) {
+  color: var(--primary);
+}
+:root[data-theme="dark"]
+  :is(
+    .custom-select-trigger,
+    .action-select-trigger,
+    .pagination-btn,
+    .dashboard-refresh-btn,
+    .stats-refresh-btn,
+    .provider-outcomes-table-wrap
+  ) {
+  border-color: var(--border-color);
+}
+@media (max-width: 700px) {
+  .nav-container {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 14px;
+  }
+  .nav-links {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .theme-picker {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .theme-picker button {
+    width: 29px;
+    height: 29px;
+  }
+  .nav-brand {
+    font-size: 20px;
+    gap: 8px;
+  }
+  .brand-mark {
+    width: 34px;
+    height: 38px;
+  }
+  .nav-brand small {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+  .page-intro {
+    padding-left: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-background span {
+    animation: none !important;
+  }
+}

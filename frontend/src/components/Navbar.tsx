@@ -1,11 +1,6 @@
+import { ThemePicker } from "./ThemePicker";
 import { NavLink } from "react-router-dom";
-import {
-  Activity,
-  ArrowUpRight,
-  Send,
-  LayoutDashboard,
-  BarChart3,
-} from "lucide-react";
+import { Activity, Send, LayoutDashboard, BarChart3 } from "lucide-react";
 
 export function Navbar() {
   return (
@@ -46,9 +41,7 @@ export function Navbar() {
             <BarChart3 size={16} /> Statistics
           </NavLink>
         </nav>
-        <span className="nav-caption">
-          A better place, together <ArrowUpRight size={15} />
-        </span>
+        <ThemePicker />
       </div>
     </header>
   );

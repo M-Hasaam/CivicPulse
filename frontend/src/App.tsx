@@ -15,6 +15,11 @@ export function App() {
           Skip to content
         </a>
         <Navbar />
+        <div className="ambient-background" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
 
         <main id="main-content" style={{ flex: 1 }}>
           <div className="container page-container">
