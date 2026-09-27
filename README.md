@@ -17,41 +17,89 @@ operations dashboard.
 
 ## Quickstart (Docker Compose)
 
-Needs only Docker Desktop.
+This is the easiest way to run the whole project. You only need Docker Desktop.
+
+### 1. Clone the repository
 
 ```powershell
 git clone https://github.com/M-Hasaam/CivicPulse.git
 cd CivicPulse
-Copy-Item .env.example .env      # macOS/Linux: cp .env.example .env; then set POSTGRES_PASSWORD
+```
+
+### 2. Create `.env` one time
+
+```powershell
+Copy-Item .env.example .env
+```
+
+On macOS/Linux:
+
+```bash
+cp .env.example .env
+```
+
+The default `.env` uses `TRIAGE_PROVIDER=rules`, so the app works without an API
+key and without downloading an AI model.
+
+### 3. Choose how to run triage
+
+| Option | When to use it | `.env` value | Command |
+| --- | --- | --- | --- |
+| Rules, no Ollama | Fastest first run. No model download. | `TRIAGE_PROVIDER=rules` | `docker compose up -d --build --scale ollama=0 --scale ollama-pull=0` |
+| Ollama | Fully offline AI triage. Downloads the model once. | `TRIAGE_PROVIDER=ollama` | `docker compose up -d --build` |
+
+For a normal first run, use the rules option:
+
+```powershell
+docker compose up -d --build --scale ollama=0 --scale ollama-pull=0
+```
+
+If you choose Ollama, edit `.env` first:
+
+```text
+TRIAGE_PROVIDER=ollama
+```
+
+Then run:
+
+```powershell
 docker compose up -d --build
 ```
 
-On first start the stack:
+The first Ollama run downloads and warms the configured model into the
+`ollama_models` volume.
+
+### 4. Wait for the stack
+
+On first start, Docker Compose:
+
 - waits for Postgres and Redis to become healthy;
 - runs the database migration (`migrate`);
 - loads 32 demo complaints (`seed`, safe to repeat);
-- pulls and warms the Ollama model (~1.3 GB, only once);
-- starts the backend.
+- starts the backend, then the frontend once the backend is healthy.
 
-Check http://localhost:8000/ready, then try the API at http://localhost:8000/docs.
-`docker compose ps -a` should show `migrate`, `seed` and `ollama-pull` as `Exited (0)`
-and every other service `healthy`.
+Check everything:
 
-| Service | Network | Notes |
-| --- | --- | --- |
-| `backend` | edge + internal + llm | the only service on all three; port 8000 published in dev only |
-| `postgres` | internal | volume `pgdata`; no published port |
-| `redis` | internal | volume `redisdata`, AOF persistence; no published port |
-| `ollama` | llm + models | volume `ollama_models`; `models` only lets it download weights |
-| `migrate`, `seed` | internal | one-shot jobs, exit 0 |
-| `ollama-pull` | llm | one-shot job, exit 0 |
+```powershell
+docker compose ps -a
+```
 
-`internal` and `llm` are both `internal: true`: neither has a route to the
-internet, and nothing on `edge` (where the frontend will run) can resolve
-`postgres` or `redis`. `ollama` is kept off `internal` and given its own `llm`
-network instead, so a compromised ollama container (a third-party image that
-pulls model weights from the open internet) has no path to the database or
-cache - only to `backend`.
+For the rules option, you should see:
+
+- `frontend`, `backend`, `postgres` and `redis` are healthy;
+- `migrate` and `seed` exited with code `0`;
+- no `ollama` containers are running.
+
+For the Ollama option, `ollama` should be running and `ollama-pull` should exit
+with code `0`.
+
+### 5. Open the app
+
+| What | URL |
+| --- | --- |
+| App | http://localhost |
+| API docs | http://localhost/docs |
+| Backend readiness | http://localhost/ready |
 
 Everyday commands:
 

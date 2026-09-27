@@ -16,6 +16,7 @@
 name: civicpulse-prod
 
 x-backend-image: &backend-image ghcr.io/m-hasaam/civicpulse/backend:${IMAGE_TAG:?set IMAGE_TAG to the commit SHA to deploy}
+x-frontend-image: &frontend-image ghcr.io/m-hasaam/civicpulse/frontend:${IMAGE_TAG:?set IMAGE_TAG to the commit SHA to deploy}
 
 # Interpolated as plain text with no URL-encoding - see the character constraint
 # documented on POSTGRES_PASSWORD in .env.example.
@@ -129,6 +130,18 @@ services:
     depends_on:
       ollama: {condition: service_healthy}
     restart: "no"
+
+  frontend:
+    image: *frontend-image
+    restart: unless-stopped
+    ports:
+      - "80:8080"  # the only published port in the whole stack
+    networks: [edge]
+    depends_on:
+      backend: {condition: service_healthy}
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 128M}
 
 networks:
   edge:
