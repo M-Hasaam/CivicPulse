@@ -21,6 +21,8 @@ spec:
         app.kubernetes.io/name: frontend
         app.kubernetes.io/part-of: civicpulse
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull
       containers:
         - name: frontend
           image: ghcr.io/m-hasaam/civicpulse/frontend:dev

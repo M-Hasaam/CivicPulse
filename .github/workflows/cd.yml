@@ -30,28 +30,16 @@ jobs:
           docker compose --env-file .env.example -f compose.yaml config --quiet
           docker compose --env-file .env.example -f compose.prod.yaml config --quiet
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.31.0
-
-      - name: Render production manifests
-        run: kubectl kustomize k8s/overlays/prod > rendered-prod.yaml
-
-      - name: Validate manifests with kubeconform
-        uses: docker://ghcr.io/yannh/kubeconform:v0.6.7
-        with:
-          entrypoint: /kubeconform
-          args: >-
-            -strict
-            -summary
-            -ignore-missing-schemas
-            rendered-prod.yaml
+  manifests:
+    name: Validate Kubernetes manifests
+    uses: ./.github/workflows/validate-manifests.yml
+    permissions:
+      contents: read
 
   publish-and-deploy:
     name: Publish GHCR images and deploy to kind
     runs-on: ubuntu-24.04
-    needs: quality-gate
+    needs: [quality-gate, manifests]
     env:
       REGISTRY: ghcr.io
     steps:
@@ -108,6 +96,15 @@ jobs:
             --selector=app.kubernetes.io/component=controller \
             --timeout=180s
 
+      - name: Install metrics-server for kind
+        run: |
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.7.2/components.yaml
+          kubectl patch deployment metrics-server -n kube-system --type=json \
+            -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+          kubectl wait --namespace kube-system \
+            --for=condition=available deployment/metrics-server \
+            --timeout=120s
+
       - name: Configure GHCR pull secret
         run: |
           kubectl create namespace civicpulse --dry-run=client -o yaml | kubectl apply -f -
@@ -117,6 +114,12 @@ jobs:
             --docker-username='${{ github.actor }}' \
             --docker-password='${{ secrets.GITHUB_TOKEN }}' \
             --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Prepare prod secrets file (CI/kind placeholder only, never real credentials)
+        run: |
+          cat > k8s/overlays/prod/secrets.env <<EOF
+          POSTGRES_PASSWORD=$(openssl rand -hex 24)
+          EOF
 
       - name: Deploy SHA-tagged images
         run: |
@@ -145,8 +148,19 @@ jobs:
           curl --fail --silent -H 'Host: civicpulse.localhost' http://127.0.0.1:8080/api/stats
           kill "$(cat /tmp/ingress-port-forward.pid)"
 
-      - name: Print HPA state
-        run: kubectl get hpa -n civicpulse
+      - name: Verify HPA is reading live metrics
+        run: |
+          for i in $(seq 1 40); do
+            status=$(kubectl get hpa backend -n civicpulse -o jsonpath='{.status.conditions[?(@.type=="ScalingActive")].status}')
+            if [ "$status" = "True" ]; then
+              echo "HPA is actively scaling on metrics-server data"
+              break
+            fi
+            echo "Waiting for metrics-server data to reach the HPA controller ($i/40)..."
+            sleep 5
+          done
+          kubectl get hpa -n civicpulse
+          test "$(kubectl get hpa backend -n civicpulse -o jsonpath='{.status.conditions[?(@.type=="ScalingActive")].status}')" = "True"
 
       - name: Show cluster state on failure
         if: failure()

@@ -45,6 +45,7 @@ dist-ssr/
 .env
 .env.*
 !.env.example
+k8s/overlays/prod/secrets.env
 
 # IDEs
 .idea/

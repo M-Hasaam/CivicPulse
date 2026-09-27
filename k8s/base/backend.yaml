@@ -12,17 +12,31 @@ spec:
         app.kubernetes.io/part-of: civicpulse
     spec:
       restartPolicy: OnFailure
+      imagePullSecrets:
+        - name: ghcr-pull
       containers:
         - name: migrate
           image: ghcr.io/m-hasaam/civicpulse/backend:dev
           imagePullPolicy: IfNotPresent
-          command: ["alembic", "upgrade", "head"]
+          command: ["sh", "-c"]
+          args:
+            - export DATABASE_URL="postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}" && exec alembic upgrade head
           env:
-            - name: DATABASE_URL
+            - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
                   name: civicpulse-secrets
-                  key: DATABASE_URL
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: civicpulse-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: civicpulse-secrets
+                  key: POSTGRES_DB
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -48,10 +62,27 @@ spec:
         app.kubernetes.io/part-of: civicpulse
     spec:
       terminationGracePeriodSeconds: 30
+      serviceAccountName: backend
+      imagePullSecrets:
+        - name: ghcr-pull
+      initContainers:
+        - name: wait-for-migrate
+          image: rancher/kubectl:v1.31.0
+          command:
+            [
+              "kubectl",
+              "wait",
+              "--for=condition=complete",
+              "job/migrate",
+              "--timeout=300s",
+            ]
       containers:
         - name: backend
           image: ghcr.io/m-hasaam/civicpulse/backend:dev
           imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - export DATABASE_URL="postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}" && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --timeout-graceful-shutdown 20
           ports:
             - name: http
               containerPort: 8000
@@ -59,11 +90,21 @@ spec:
             - configMapRef:
                 name: civicpulse-config
           env:
-            - name: DATABASE_URL
+            - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
                   name: civicpulse-secrets
-                  key: DATABASE_URL
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: civicpulse-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: civicpulse-secrets
+                  key: POSTGRES_DB
             - name: GROQ_API_KEY
               valueFrom:
                 secretKeyRef:

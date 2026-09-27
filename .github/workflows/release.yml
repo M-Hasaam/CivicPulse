@@ -14,9 +14,16 @@ permissions:
   packages: write
 
 jobs:
+  quality-gate:
+    name: CI quality gate
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   release:
     name: Build semver images and publish release
     runs-on: ubuntu-24.04
+    needs: quality-gate
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

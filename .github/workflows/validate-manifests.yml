@@ -1,0 +1,38 @@
+name: Validate manifests
+
+on:
+  workflow_call:
+
+jobs:
+  validate:
+    name: Kustomize and kubeconform
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+
+      - name: Prepare prod secrets file (CI placeholder only, never real credentials)
+        run: |
+          cat > k8s/overlays/prod/secrets.env <<EOF
+          POSTGRES_PASSWORD=$(openssl rand -hex 24)
+          EOF
+
+      - name: Render production manifests
+        run: kubectl kustomize k8s/overlays/prod > rendered-prod.yaml
+
+      - name: Validate manifests with kubeconform
+        uses: docker://ghcr.io/yannh/kubeconform:v0.6.7
+        with:
+          entrypoint: /kubeconform
+          args: >-
+            -strict
+            -summary
+            -ignore-missing-schemas
+            rendered-prod.yaml
