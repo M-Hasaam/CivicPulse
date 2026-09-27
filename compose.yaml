@@ -67,7 +67,13 @@ services:
       GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
       RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-10}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
-      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      # Hardcoded, not ${...}-substituted: this dev backend always has "8000:8000"
+      # below, a direct proxy-free path from the host, regardless of any value in
+      # .env (where TRUSTED_PROXY_HOPS=1 is the *production* default, read by
+      # compose.prod.yaml). Trusting a hop here would let any client pick a
+      # different fake X-Forwarded-For entry per request and bypass the rate
+      # limiter entirely.
+      TRUSTED_PROXY_HOPS: "0"
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
     # Development only: the host's source is mounted over the image's copy and
