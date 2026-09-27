@@ -560,9 +560,11 @@ pre,
   white-space: nowrap;
 }
 
-.custom-select-option:hover {
+.custom-select-option:hover,
+.custom-select-option:focus-visible {
   background: rgba(28, 99, 77,0.15);
   color: var(--text-primary);
+  outline: none;
 }
 
 .custom-select-option.selected {
@@ -867,10 +869,12 @@ pre,
   white-space: nowrap;
 }
 
-.action-select-option:hover {
+.action-select-option:hover,
+.action-select-option:focus-visible {
   background: rgba(28, 99, 77,0.18);
   color: #194c3b;
   padding-left: 1rem;
+  outline: none;
 }
 
 .action-select-icon {
