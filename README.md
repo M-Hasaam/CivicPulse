@@ -6,22 +6,31 @@ A citizen submits a free-text complaint; the backend triages it with an LLM into
 category, a priority and a one-line summary, persists it, and surfaces it on an
 operations dashboard.
 
-> Work in progress. This README covers local development only; the one-command
+> Work in progress. This README covers local development; the one-command
 > Docker Compose quickstart will replace it once the stack is containerised.
 
 ## Stack
 
 - **Backend:** FastAPI + Pydantic v2 (Python 3.12)
 - **Database:** PostgreSQL 16, schema managed by Alembic
+- **Cache and rate limiter:** Redis 7
+- **AI triage:** Groq (hosted), Ollama (offline) or keyword rules, behind one interface
 - **Frontend:** React 18 + Vite + TypeScript
 
-## Run the backend locally
+## Run everything locally
 
-Requires Python 3.12. From the repository root (PowerShell):
+| Service | Runs as | Address |
+| --- | --- | --- |
+| PostgreSQL 16 | Docker container `civicpulse-dev-pg` | `localhost:5432` |
+| Redis 7 | Docker container `civicpulse-dev-redis` | `localhost:6379` |
+| Ollama (optional) | Docker container `civicpulse-dev-ollama` | `localhost:11434` |
+| Backend | `uvicorn` in `backend/.venv` | http://localhost:8000 (API docs at `/docs`) |
+| Frontend | Vite dev server | http://localhost:5173 |
 
-### 1. Start a local PostgreSQL 16 and Redis 7
+**Prerequisites:** Docker Desktop (running), Python 3.12, Node.js 22.
+Commands are for PowerShell from the repository root; macOS/Linux differences are noted.
 
-Until Docker Compose lands, run them in throwaway containers:
+### 1. Start the containers (first time)
 
 ```powershell
 docker run -d --name civicpulse-dev-pg `
@@ -31,35 +40,90 @@ docker run -d --name civicpulse-dev-pg `
 docker run -d --name civicpulse-dev-redis -p 6379:6379 redis:7-alpine
 ```
 
-That creates the containers once. Afterwards, start and stop the same ones
-(`docker run` again fails with "name already in use"):
+**Optional: Ollama, the fully offline triage provider.** No API key and no data
+leaves your machine, but it is slower and less accurate than Groq.
 
 ```powershell
-docker start civicpulse-dev-pg civicpulse-dev-redis
-docker stop civicpulse-dev-pg civicpulse-dev-redis
+docker run -d --name civicpulse-dev-ollama -p 11434:11434 `
+  -v civicpulse-dev-ollama-models:/root/.ollama ollama/ollama:0.5.7
+
+docker exec civicpulse-dev-ollama ollama pull llama3.2:1b   # ~1.3 GB, downloaded once into the volume
 ```
+
+On macOS/Linux, replace the backtick line continuations with `\`.
 
 ### 2. Configure
 
-Copy `.env.example` to `.env` in the repository root. Its `DATABASE_URL` and `REDIS_URL` already
-point at the containers above. The backend reads the root `.env` from any
-working directory; real environment variables override it.
+```powershell
+Copy-Item .env.example .env        # macOS/Linux: cp .env.example .env
+```
 
-### 3. Install, migrate, seed, run
+The defaults already point at the containers above (`localhost`). Then choose
+how complaints are triaged with `TRIAGE_PROVIDER` in `.env`:
+
+| `TRIAGE_PROVIDER` | Needs | Notes |
+| --- | --- | --- |
+| `rules` (default) | nothing | Keyword rules. Works out of the box |
+| `llm` | `GROQ_API_KEY` (free at https://console.groq.com) | Groq `openai/gpt-oss-20b`, ~1 s per complaint |
+| `ollama` | the Ollama container above | `llama3.2:1b` on CPU: ~2 s per complaint, first call ~7 s while the model loads |
+| `simulated` | nothing | Deterministic fake used by the tests |
+
+Whatever you pick, any failure (timeout, rate limit, bad output, Ollama not
+running) falls back to the rules and is recorded as `rules:fallback`: a
+complaint is never rejected because the AI is unavailable.
+
+`.env` is gitignored. Never commit it; add new variables to `.env.example`
+with placeholder values instead.
+
+### 3. Backend
 
 ```powershell
 cd backend
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1       # macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
-alembic upgrade head             # create the schema (never done at app startup)
-python -m app.seed               # 32 demo complaints; safe to run again
+alembic upgrade head               # create the schema (never done at app startup)
+python -m app.seed                 # 32 demo complaints; safe to run again
 python -m uvicorn app.main:app --reload
 ```
 
-On macOS/Linux, activate with `source .venv/bin/activate` instead.
+Check it at http://localhost:8000/ready. It should say `{"status": "ready"}`.
+Then try the API at http://localhost:8000/docs.
 
-Open http://localhost:8000/docs for the interactive API.
+### 4. Frontend
+
+In a second terminal:
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+Open http://localhost:5173.
+
+### Day to day
+
+The containers keep their data. Next time you only need to start them again,
+then run the backend and frontend commands from steps 3 and 4 (skip the setup lines):
+
+```powershell
+docker start civicpulse-dev-pg civicpulse-dev-redis civicpulse-dev-ollama
+docker stop  civicpulse-dev-pg civicpulse-dev-redis civicpulse-dev-ollama
+```
+
+(`docker run` a second time fails with "name already in use". Use `docker start`.)
+
+### Troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `/ready` → 503 `postgres (...)` or `redis (...)` | That container is not running: `docker start civicpulse-dev-pg civicpulse-dev-redis` |
+| `/ready` → 503 `... (gaierror)` | `.env` uses a Docker Compose hostname (`@postgres`, `redis://redis`). For local runs use `localhost` |
+| Complaints come back `triaged_by: rules:fallback` | The provider failed: check the WARNING log line (it names the error). Usually a missing `GROQ_API_KEY` or Ollama not running |
+| `uvicorn app.main:app` fails with "unexpected extra argument" | Run it as `python -m uvicorn app.main:app --reload` |
+| Code changes are not picked up | Restart the backend (Ctrl+C, then run it again). `.env` changes always need a restart |
+| Port 8000 or 5173 already in use | Another backend/frontend is still running; stop it first |
 
 ## API
 
@@ -78,10 +142,9 @@ Open http://localhost:8000/docs for the interactive API.
 **Status machine:** `open → in_progress → resolved`, `open → rejected`,
 `in_progress → rejected`. `resolved` and `rejected` are final.
 
-**Triage:** `TRIAGE_PROVIDER` selects `llm` (Groq), `ollama`, `rules` or
-`simulated`. Any provider failure (timeout, 429, 5xx, malformed output) falls
-back to the keyword rules and is recorded as `triaged_by = rules:fallback`.
-Duplicate complaints are served from a 24 h content-hash cache.
+**Triage:** see the provider table above. Duplicate complaints are served from a
+24 h content-hash cache, so nine neighbours reporting the same burst main cost
+one inference.
 
 ```powershell
 curl -X POST http://localhost:8000/api/complaints -H "Content-Type: application/json" `
@@ -91,10 +154,20 @@ curl -X POST http://localhost:8000/api/complaints -H "Content-Type: application/
 Every response carries an `X-Request-ID` (yours if you send one). Logs are JSON
 on stdout, one line per event, each with that `request_id`.
 
-### Lint, type-check and test
+## Development
+
+From `backend/` with the virtualenv active:
 
 ```powershell
 ruff check .
 mypy app
 pytest --cov=app        # tests never call a live LLM
+```
+
+From `frontend/`:
+
+```powershell
+npm run lint
+npm run typecheck
+npm run build
 ```
