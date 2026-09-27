@@ -66,3 +66,10 @@ def test_metrics_exposes_request_counter() -> None:
     response = client.get("/metrics")
     assert response.status_code == 200
     assert "civicpulse_http_requests_total" in response.text
+
+
+def test_metrics_label_unknown_paths_without_growing_series() -> None:
+    client.get("/no-such-page-12345")
+    response = client.get("/metrics")
+    assert "no-such-page-12345" not in response.text
+    assert 'endpoint="unmatched"' in response.text

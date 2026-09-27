@@ -49,6 +49,7 @@ class LLMTriage:
         model: str,
         base_url: str = "https://api.groq.com/openai/v1",
         timeout_seconds: float = 10.0,
+        client: httpx.AsyncClient | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Sleep = asyncio.sleep,
     ) -> None:
@@ -56,6 +57,7 @@ class LLMTriage:
         self._model = model
         self._url = base_url.rstrip("/") + "/chat/completions"
         self._timeout = timeout_seconds
+        self._client = client
         self._transport = transport
         self._sleep = sleep
 
@@ -78,6 +80,7 @@ class LLMTriage:
             provider=self.name,
             timeout_seconds=self._timeout,
             headers={"Authorization": f"Bearer {key}"},
+            client=self._client,
             transport=self._transport,
             sleep=self._sleep,
         )
