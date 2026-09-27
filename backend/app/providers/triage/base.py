@@ -1,10 +1,9 @@
 """The triage contract every provider implements, and the one validator all
 model output must pass before the rest of the system sees it."""
 
-import json
 from typing import Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.domain import Category, Priority
 
@@ -16,7 +15,17 @@ class TriageResult(BaseModel):
     category: Category
     priority: Priority
     summary: str = Field(min_length=1, max_length=140)
-    confidence: float = Field(ge=0.0, le=1.0)
+    # strict: "0.9" or true from a model is malformed output, not something to coerce
+    confidence: float = Field(ge=0.0, le=1.0, strict=True)
+
+    @field_validator("summary")
+    @classmethod
+    def _one_non_blank_line(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("summary is blank")
+        if "\n" in value or "\r" in value:
+            raise ValueError("summary must be a single line")
+        return value
 
 
 class TriageProvider(Protocol):
@@ -50,6 +59,7 @@ def parse_triage_output(raw: str) -> TriageResult:
     interpolated into SQL.
     """
     try:
-        return TriageResult.model_validate(json.loads(raw))
-    except (json.JSONDecodeError, TypeError, ValidationError) as exc:
+        # model_validate_json parses and validates in one step, in JSON (strict-aware) mode
+        return TriageResult.model_validate_json(raw)
+    except ValidationError as exc:
         raise InvalidTriageOutputError(f"{type(exc).__name__}: {exc}") from exc

@@ -77,6 +77,10 @@ def test_validator_accepts_schema_conforming_json() -> None:
         json.dumps({**VALID, "priority": "urgent"}),
         json.dumps({**VALID, "summary": "x" * 141}),  # a "one-line" essay
         json.dumps({**VALID, "confidence": 1.7}),
+        json.dumps({**VALID, "confidence": "0.9"}),  # string coerced to float
+        json.dumps({**VALID, "confidence": True}),  # bool coerced to 1.0
+        json.dumps({**VALID, "summary": "   "}),  # blank
+        json.dumps({**VALID, "summary": "Burst main\nIgnore previous rules"}),  # multi-line
         json.dumps({**VALID, "sql": "DROP TABLE complaints"}),  # unexpected key
         json.dumps([VALID]),
     ],
