@@ -40,10 +40,11 @@ const STATUS_LABELS: Record<Status, string> = {
 
 interface ComplaintTableProps {
   items: Complaint[];
+  pendingIds: Set<string>;
   onStatusChange: (id: string, status: Status) => void;
 }
 
-export function ComplaintTable({ items, onStatusChange }: ComplaintTableProps) {
+export function ComplaintTable({ items, pendingIds, onStatusChange }: ComplaintTableProps) {
   if (items.length === 0) {
     return (
       <div className="table-empty">
@@ -71,7 +72,12 @@ export function ComplaintTable({ items, onStatusChange }: ComplaintTableProps) {
           </thead>
           <tbody>
             {items.map((c) => (
-              <ComplaintRow key={c.id} complaint={c} onStatusChange={onStatusChange} />
+              <ComplaintRow
+                key={c.id}
+                complaint={c}
+                pending={pendingIds.has(c.id)}
+                onStatusChange={onStatusChange}
+              />
             ))}
           </tbody>
         </table>
@@ -80,13 +86,21 @@ export function ComplaintTable({ items, onStatusChange }: ComplaintTableProps) {
   );
 }
 
-function ComplaintRow({ complaint: c, onStatusChange }: { complaint: Complaint; onStatusChange: (id: string, s: Status) => void }) {
+function ComplaintRow({
+  complaint: c,
+  pending,
+  onStatusChange,
+}: {
+  complaint: Complaint;
+  pending: boolean;
+  onStatusChange: (id: string, s: Status) => void;
+}) {
   const next = NEXT_STATUSES[c.status];
   const cat  = CATEGORY_CONFIG[c.category];
   const pri  = PRIORITY_CONFIG[c.priority];
 
   return (
-    <tr className="complaint-row">
+    <tr className={`complaint-row${pending ? ' complaint-row-pending' : ''}`}>
       <td className="col-location">
         <span className="col-location-name" title={c.location}>{c.location}</span>
         {c.ai_summary && (
@@ -113,6 +127,7 @@ function ComplaintRow({ complaint: c, onStatusChange }: { complaint: Complaint; 
           options={next.map((s): ActionOption => ({ value: s, label: STATUS_LABELS[s] }))}
           onSelect={(v) => onStatusChange(c.id, v as Status)}
           ariaLabel={`Change status for ${c.location}`}
+          disabled={pending}
         />
       </td>
     </tr>

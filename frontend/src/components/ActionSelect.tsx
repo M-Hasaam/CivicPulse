@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ArrowRight } from 'lucide-react';
+import { ChevronDown, ArrowRight, Loader2 } from 'lucide-react';
 
 export interface ActionOption {
   value: string;
@@ -10,6 +10,7 @@ interface ActionSelectProps {
   options: ActionOption[];
   onSelect: (value: string) => void;
   ariaLabel?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -17,7 +18,7 @@ interface ActionSelectProps {
  * then closes. Does NOT track a persistent selected value (unlike CustomSelect).
  * Used for status transition actions in the dashboard table.
  */
-export function ActionSelect({ options, onSelect, ariaLabel }: ActionSelectProps) {
+export function ActionSelect({ options, onSelect, ariaLabel, disabled = false }: ActionSelectProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -36,6 +37,15 @@ export function ActionSelect({ options, onSelect, ariaLabel }: ActionSelectProps
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, []);
+
+  if (disabled) {
+    return (
+      <button type="button" className="action-select-trigger" disabled
+        style={{ opacity: 0.55, cursor: 'not-allowed' }}>
+        <Loader2 size={12} className="spinner" /> Updating…
+      </button>
+    );
+  }
 
   if (options.length === 0) return <span className="col-terminal">—</span>;
 
