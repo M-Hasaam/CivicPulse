@@ -35,7 +35,12 @@ class Settings(BaseSettings):
 
     # Reverse proxies we control in front of the backend (nginx, ingress). Only the
     # X-Forwarded-For entries they append are trusted; 0 ignores the header entirely.
-    TRUSTED_PROXY_HOPS: int = 1
+    # Default is 0 (fail closed): compose.yaml, compose.prod.yaml and
+    # k8s/base/kustomization.yaml each set this to 1 explicitly, since they're the
+    # only topologies where a real proxy is actually in front of the backend. Any
+    # other way of running this app - directly, with no proxy - must not silently
+    # trust a client-supplied X-Forwarded-For.
+    TRUSTED_PROXY_HOPS: int = 0
 
     # Real environment variables always win over the file (Compose, Kubernetes, CI)
     model_config = SettingsConfigDict(env_file=REPO_ROOT_ENV, extra="ignore")
