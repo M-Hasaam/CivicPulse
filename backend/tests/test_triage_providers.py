@@ -171,6 +171,46 @@ def test_llm_never_retries_a_400() -> None:
     assert len(upstream.requests) == 1 and upstream.sleeps == []
 
 
+def test_llm_does_not_retry_connection_failures() -> None:
+    # A refused connection or DNS failure: retrying immediately almost never helps,
+    # so the caller should fall back straight away.
+    upstream = FakeUpstream(httpx.ConnectError("connection refused"))
+    with pytest.raises(TriageUnavailableError):
+        asyncio.run(upstream.llm().triage("burst main", "St 12"))
+    assert len(upstream.requests) == 1 and upstream.sleeps == []
+
+
+@pytest.mark.parametrize(
+    "body", [b"<html>502 Bad Gateway</html>", b'["not", "an", "object"]']
+)
+def test_llm_turns_a_malformed_2xx_body_into_a_triage_error(body: bytes) -> None:
+    upstream = FakeUpstream(httpx.Response(200, content=body))
+    with pytest.raises(InvalidTriageOutputError):
+        asyncio.run(upstream.llm().triage("burst main", "St 12"))
+
+
+def test_llm_enforces_a_hard_deadline_per_attempt() -> None:
+    class SlowStream(httpx.AsyncByteStream):
+        async def __aiter__(self):  # type: ignore[no-untyped-def]
+            yield b'{"choices": '
+            await asyncio.sleep(5)  # trickles: each read is quick, the total is not
+            yield b"[]}"
+
+    upstream = FakeUpstream(
+        httpx.Response(200, stream=SlowStream()), httpx.Response(200, stream=SlowStream())
+    )
+    provider = LLMTriage(
+        SecretStr(API_KEY),
+        "test-model",
+        timeout_seconds=0.05,
+        transport=httpx.MockTransport(upstream.handler),
+        sleep=upstream.sleep,
+    )
+    with pytest.raises(TriageUnavailableError, match="timed out"):
+        asyncio.run(provider.triage("burst main", "St 12"))
+    assert len(upstream.requests) == 2  # timed out, retried once, timed out again
+
+
 def test_llm_rejects_malformed_model_output() -> None:
     upstream = FakeUpstream(groq_reply("Sure! The category is water."))
     with pytest.raises(InvalidTriageOutputError):
