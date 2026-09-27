@@ -296,6 +296,18 @@ export interface components {
         StatusUpdate: {
             status: components["schemas"]["Status"];
         };
+        /**
+         * TransitionErrorOut
+         * @description 409 body for PATCH .../status: the fields _invalid_transition actually
+         *     returns, so a generated client can type and discover them instead of only
+         *     the bare `detail` string that ErrorOut promises.
+         */
+        TransitionErrorOut: {
+            /** Detail */
+            detail: string;
+            current_status: components["schemas"]["Status"];
+            attempted_status: components["schemas"]["Status"];
+        };
         /** TriageCacheStats */
         TriageCacheStats: {
             /** Hits */
@@ -540,7 +552,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorOut"];
+                    "application/json": components["schemas"]["TransitionErrorOut"];
                 };
             };
         };
