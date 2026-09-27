@@ -111,6 +111,21 @@ services:
       resources:
         limits: {cpus: "4.0", memory: 3G}
 
+  # A fresh deployment's ollama_models volume is empty: without this, the
+  # container runs but has no model, and TRIAGE_PROVIDER=ollama fails until
+  # someone execs in and pulls it by hand. Matches dev's ollama-pull.
+  ollama-pull:
+    image: ollama/ollama:0.5.7
+    profiles: [ollama]
+    entrypoint: ["sh", "-c", "ollama pull \"$$MODEL\" && ollama run \"$$MODEL\" ok > /dev/null && echo \"$$MODEL loaded\""]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    networks: [internal]
+    depends_on:
+      ollama: {condition: service_healthy}
+    restart: "no"
+
 networks:
   edge:
     driver: bridge
