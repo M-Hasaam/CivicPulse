@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react';
-import { Loader2, Send } from 'lucide-react';
+import { CheckCircle2, Loader2, Send } from 'lucide-react';
 import {
   ApiConflictError,
   ApiError,
@@ -50,6 +50,11 @@ function validate(form: FormState): Record<string, string> {
   }
 
   return errors;
+}
+
+/** Format milliseconds with a thousands separator: 1234 → "1,234 ms" */
+function formatMs(ms: number): string {
+  return `${ms.toLocaleString()} ms`;
 }
 
 const PRIORITY_BADGE: Record<string, string> = {
@@ -121,9 +126,28 @@ export function SubmitPage() {
       <h2 style={{ marginBottom: '1.5rem' }}>Submit a complaint</h2>
 
       {result && (
-        <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }} role="status">
-          <p style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Complaint received.</p>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+        <div
+          className="glass-card"
+          style={{ padding: '1.5rem', marginBottom: '1.5rem' }}
+          role="status"
+        >
+          {/* Header row */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginBottom: '0.75rem',
+            }}
+          >
+            <CheckCircle2 size={18} style={{ color: 'var(--success)', flexShrink: 0 }} />
+            <p style={{ fontWeight: 600 }}>Complaint received.</p>
+          </div>
+
+          {/* Category + priority badges */}
+          <div
+            style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}
+          >
             <span className="badge" style={{ background: 'rgba(255,255,255,0.08)' }}>
               {result.category}
             </span>
@@ -131,14 +155,23 @@ export function SubmitPage() {
               {result.priority} priority
             </span>
           </div>
+
+          {/* AI summary */}
           {result.ai_summary && (
-            <p style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
               {result.ai_summary}
             </p>
           )}
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+
+          {/* Triage metadata */}
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginBottom: '0.25rem' }}>
             Triaged by <span className="mono">{result.triaged_by}</span> in{' '}
-            {result.triage_latency_ms} ms
+            {formatMs(result.triage_latency_ms)}
+          </p>
+
+          {/* Complaint ID — the canonical reference for follow-up */}
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+            Reference: <span className="mono">{result.id}</span>
           </p>
         </div>
       )}
@@ -226,10 +259,18 @@ export function SubmitPage() {
             </>
           )}
         </button>
+
+        {/* Progress bar — gives the citizen a visual signal that something is
+            happening during the multi-second AI triage call. */}
         {submitting && (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: '0.5rem' }}>
-            This calls an AI model to triage your complaint - it can take a few seconds.
-          </p>
+          <div className="mt-3">
+            <div className="w-full h-[3px] rounded-full overflow-hidden bg-white/[0.08]">
+              <div className="h-full w-1/4 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 animate-[progress-slide_1.4s_ease-in-out_infinite]" />
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: '0.4rem' }}>
+              This calls an AI model to triage your complaint - it can take a few seconds.
+            </p>
+          </div>
         )}
       </form>
     </div>
