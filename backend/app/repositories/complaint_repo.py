@@ -1,11 +1,29 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain import Category, Priority, Status
 from app.repositories.models import ComplaintModel
+
+# Bounds how long a status change waits on another one's row lock. Without this,
+# a burst of concurrent requests against the same complaint (a flaky client
+# retrying, or a script) could each block indefinitely while holding a pooled
+# connection, exhausting the pool with nothing ever timing out.
+LOCK_TIMEOUT_SECONDS = 5
+
+
+class ComplaintLockTimeoutError(Exception):
+    """A concurrent status change on the same complaint held its lock too long."""
+
+    def __init__(self, complaint_id: uuid.UUID) -> None:
+        self.complaint_id = complaint_id
+        super().__init__(
+            f"Timed out after {LOCK_TIMEOUT_SECONDS}s waiting for a concurrent "
+            f"update to complaint {complaint_id} to finish"
+        )
 
 
 class ComplaintRepository:
@@ -35,8 +53,15 @@ class ComplaintRepository:
         request's read blocks until the first commits, then it re-reads the row and
         validates against the *current* status, so at most one of two conflicting
         transitions can ever succeed.
+
+        The wait is bounded by LOCK_TIMEOUT_SECONDS: raises ComplaintLockTimeoutError
+        rather than blocking forever if the first transaction never commits.
         """
-        return await self.session.scalar(self._for_update_statement(complaint_id))
+        await self.session.execute(text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT_SECONDS}s'"))
+        try:
+            return await self.session.scalar(self._for_update_statement(complaint_id))
+        except OperationalError as exc:
+            raise ComplaintLockTimeoutError(complaint_id) from exc
 
     @staticmethod
     def _for_update_statement(complaint_id: uuid.UUID) -> Select[ComplaintModel]:

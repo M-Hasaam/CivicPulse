@@ -30,7 +30,13 @@ async def current_stats_key(redis: Redis) -> str:
     delete brings the stale data straight back for up to STATS_TTL_SECONDS.
     """
     version = await redis.get(STATS_VERSION_KEY)
-    return f"{STATS_KEY_PREFIX}:{int(version) if version else 0}"
+    if not version:
+        return f"{STATS_KEY_PREFIX}:0"
+    try:
+        return f"{STATS_KEY_PREFIX}:{int(version)}"
+    except (TypeError, ValueError):
+        logger.warning("stats cache version %r is not an integer, treating as gen 0", version)
+        return f"{STATS_KEY_PREFIX}:0"
 
 
 async def get_stats(
@@ -44,11 +50,14 @@ async def get_stats(
     try:
         key = await current_stats_key(redis)
         cached = await redis.get(key)
-        if cached is not None:
-            return json.loads(cached), HIT
     except RedisError as exc:
         logger.warning("stats cache read failed, bypassing cache: %s", exc)
         return await loader(), BYPASS
+    if cached is not None:
+        try:
+            return json.loads(cached), HIT
+        except json.JSONDecodeError:
+            logger.warning("stats cache entry is not valid JSON, treating as miss")
 
     stats = await loader()
     try:
