@@ -33,13 +33,21 @@ KEYWORDS: dict[Category, tuple[str, ...]] = {
 URGENT = (
     "burst", "flood", "flooding", "spark", "sparking", "fire", "smoke", "electrocution",
     "live wire", "hanging wire", "sinkhole", "manhole", "accident", "injury", "injured",
-    "collapse", "emergency", "danger", "dangerous", "hazard", "contaminat", "entering houses",
+    "collapse", "emergency", "danger", "dangerous", "hazard", "contaminated",
+    "contamination", "entering houses",
 )
 MINOR = ("cosmetic", "faded", "paint", "slow", "minor", "request")
 
-_WORD = {kw: re.compile(r"\b" + re.escape(kw)) for kws in KEYWORDS.values() for kw in kws}
-_URGENT = [re.compile(r"\b" + re.escape(kw)) for kw in URGENT]
-_MINOR = [re.compile(r"\b" + re.escape(kw)) for kw in MINOR]
+
+
+def _whole_word(keyword: str) -> re.Pattern[str]:
+    """Match the keyword (or its plural) as a whole word: 'pipes' yes, 'waterfall' no."""
+    return re.compile(r"\b" + re.escape(keyword) + r"(?:s|es)?\b")
+
+
+_WORD = {kw: _whole_word(kw) for kws in KEYWORDS.values() for kw in kws}
+_URGENT = [_whole_word(kw) for kw in URGENT]
+_MINOR = [_whole_word(kw) for kw in MINOR]
 
 
 def _summary(text: str) -> str:

@@ -271,3 +271,15 @@ def test_ollama_uses_json_mode_and_the_same_validator() -> None:
 def test_factory_selects_provider_from_environment(name: str, expected: type) -> None:
     settings = Settings(DATABASE_URL="x", TRIAGE_PROVIDER=name, _env_file=None)  # type: ignore[call-arg, arg-type]
     assert isinstance(get_triage_provider(settings), expected)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("The waterfall mural in the park is powerful and beautiful", Category.other),
+        ("Several wires and cables hanging loose from the poles", Category.electricity),
+        ("Water pipes leaking into the street since morning", Category.water),
+    ],
+)
+def test_rules_match_whole_keywords_only(text: str, expected: Category) -> None:
+    assert asyncio.run(RuleBasedTriage().triage(text, "x")).category is expected
