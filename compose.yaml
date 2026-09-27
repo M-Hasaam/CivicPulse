@@ -9,6 +9,10 @@
 
 name: civicpulse
 
+# Shared by every container that talks to Postgres
+x-database-url: &database-url
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -52,10 +56,10 @@ services:
     image: civicpulse-backend:dev
     restart: unless-stopped
     environment:
+      <<: *database-url
       ENVIRONMENT: development
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Service names, never localhost: each container has its own localhost
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       TRIAGE_PROVIDER: ${TRIAGE_PROVIDER:-rules}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
@@ -76,6 +80,8 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+      # the schema exists before the first request; never created at app startup
+      migrate: {condition: service_completed_successfully}
     healthcheck:
       test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status != 200)"]
       interval: 10s
@@ -85,6 +91,28 @@ services:
     deploy:
       resources:
         limits: {cpus: "1.0", memory: 512M}
+
+  # One-shot jobs on the backend image: run, then exit 0.
+  migrate:
+    build: ./backend
+    image: civicpulse-backend:dev
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *database-url
+    networks: [internal]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  seed:
+    image: civicpulse-backend:dev
+    command: ["python", "-m", "app.seed"]  # idempotent: a second run inserts nothing
+    environment:
+      <<: *database-url
+    networks: [internal]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: "no"
 
 networks:
   edge:
