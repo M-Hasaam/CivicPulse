@@ -9,7 +9,9 @@
 #             compromised ollama container (third-party image, pulls weights from the
 #             internet) has no network path to postgres or redis.
 #   models    ollama only: lets it download model weights. Nothing else is on it.
-# The backend is the only service on edge, internal and llm.
+# The backend is the only service on edge, internal and llm. frontend is on edge only:
+# it can reach the backend and nothing else (`docker compose exec frontend ping postgres`
+# has no route).
 
 name: civicpulse
 
@@ -160,6 +162,20 @@ services:
     depends_on:
       migrate: {condition: service_completed_successfully}
     restart: "no"
+
+  frontend:
+    build: ./frontend
+    image: civicpulse-frontend:dev
+    restart: unless-stopped
+    ports:
+      - "80:8080"  # http://localhost - nginx (non-root, listens on 8080) serves the built app
+    networks: [edge]
+    depends_on:
+      backend: {condition: service_healthy}
+    # Healthcheck comes from the image's own HEALTHCHECK (frontend/Dockerfile).
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 128M}
 
 networks:
   edge:
