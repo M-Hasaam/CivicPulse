@@ -14,14 +14,15 @@ Kept honest on purpose: an empty row here is a to-do, not an oversight to hide.
 
 | Rubric line | Marks | Evidence | Status |
 | --- | --- | --- | --- |
-| Frontend provably cannot reach the database | 4 | Verified live, repeatedly, via `docker run --network civicpulse_edge ... nc -z postgres 5432` (fails to resolve) — see the commit messages on `feature/docker-backend` (PRs #25, #28) | ⚪ Not screenshotted — the brief asks for this as a **video** demo (`docker compose exec frontend ping postgres` failing on camera), not a static file here |
+| Full Compose stack runs from one command | (supports Docker/Compose demo and README proof) | `compose-stack-healthy.png` (`frontend`, `backend`, `postgres`, `redis`, `ollama` healthy; `migrate`, `seed`, `ollama-pull` exited 0)<br>`compose-api-stats-200.png` (`GET /api/stats` through the frontend proxy returns 200)<br>`compose-api-complaints-200.png` (`GET /api/complaints` returns seeded data)<br>`compose-api-create-complaint-201.png` (`POST /api/complaints` creates a row through the Compose stack)<br>`compose-ollama-model-list.png` (`llama3.2:1b` loaded in Ollama) | ✅ Screenshot evidence captured; still include the live run in the final demo video |
+| Frontend provably cannot reach the database | 4 | `compose-frontend-cannot-reach-postgres.png` (`docker compose exec frontend wget -T 3 -O- http://postgres:5432` fails with `bad address`)<br>Also verified live earlier via `docker run --network civicpulse_edge ... nc -z postgres 5432` (fails to resolve) — see the commit messages on `feature/docker-backend` (PRs #25, #28) | 🟡 Screenshot captured — still record this in the **video** demo because the brief asks for a live demonstration |
 | `.dockerignore` context sizes before/after | 2 | Reported in the `build(backend): multi-stage non-root Dockerfile` commit message (184.2 MB → 128 kB) | 🟡 In a commit message, not this folder — fine as-is unless the write-up wants it duplicated here |
 
 ## D · Data layer
 
 | Rubric line | Marks | Evidence | Status |
 | --- | --- | --- | --- |
-| `docker compose down` / `up` preserves every row; same for deleting the Postgres pod on K8s | (persistence contract, "you will demonstrate both") | Verified live multiple times (a complaint survives `down`/`up`; seed reports "already present" on rerun) — see commit messages | ⚪ Not screenshotted — also a **video** demo item; the K8s-pod-deletion half can't be shown until `feature/k8s` exists |
+| `docker compose down` / `up` preserves every row; same for deleting the Postgres pod on K8s | (persistence contract, "you will demonstrate both") | `compose-api-create-complaint-201.png` proves a row can be created through the running Compose stack<br>Verified live multiple times earlier (a complaint survives `down`/`up`; seed reports "already present" on rerun) — see commit messages | ⚪ Compose persistence still belongs in the **video** demo; the K8s-pod-deletion half can't be shown until `feature/k8s` exists |
 
 ## H · Kubernetes
 
@@ -40,7 +41,7 @@ Kept honest on purpose: an empty row here is a to-do, not an oversight to hide.
 
 | Rubric line | Marks | Evidence | Status |
 | --- | --- | --- | --- |
-| README screenshots | (part of README's 4) | — | 🔴 Not started |
+| README screenshots | (part of README's 4) | `readme-frontend-ui.png` (frontend loaded at `http://localhost/`)<br>`compose-stack-healthy.png` (Compose services healthy/exited 0)<br>`compose-api-stats-200.png` and `compose-api-complaints-200.png` (API examples for README/run proof) | 🟡 Started — add final README screenshots after CI/CD and K8s are present |
 | Demo video ≤ 5 min, both partners speaking | 3 | — | 🔴 Not started — the last thing to record, once Compose, K8s and CI/CD all work |
 
 ## Legend
