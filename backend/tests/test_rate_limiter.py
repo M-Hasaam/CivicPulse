@@ -92,9 +92,38 @@ def _request(headers: dict[str, str], client: tuple[str, int] | None) -> rate_li
     return rate_limiter.Request(scope)
 
 
-def test_client_identifier_prefers_first_forwarded_address() -> None:
-    request = _request({"X-Forwarded-For": "203.0.113.7, 10.0.0.2"}, ("10.0.0.2", 5000))
+def test_client_identifier_trusts_only_the_entry_our_proxy_appended() -> None:
+    # nginx appended 203.0.113.7 (the real client); "6.6.6.6" was typed by the client
+    request = _request({"X-Forwarded-For": "6.6.6.6, 203.0.113.7"}, ("172.18.0.5", 5000))
     assert rate_limiter.client_identifier(request) == "203.0.113.7"
+
+
+def test_client_identifier_ignores_any_number_of_spoofed_entries() -> None:
+    request = _request({"X-Forwarded-For": "1.1.1.1, 2.2.2.2, 3.3.3.3, 203.0.113.7"}, None)
+    assert rate_limiter.client_identifier(request) == "203.0.113.7"
+
+
+def test_client_identifier_skips_two_trusted_proxies(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_HOPS", 2)
+    # client -> ingress (appends client) -> nginx (appends ingress) -> backend
+    request = _request({"X-Forwarded-For": "6.6.6.6, 203.0.113.7, 10.0.0.9"}, ("172.18.0.5", 5000))
+    assert rate_limiter.client_identifier(request) == "203.0.113.7"
+
+
+def test_client_identifier_uses_socket_when_header_is_shorter_than_trusted_hops(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_HOPS", 2)
+    request = _request({"X-Forwarded-For": "6.6.6.6"}, ("198.51.100.4", 5000))
+    assert rate_limiter.client_identifier(request) == "198.51.100.4"
+
+
+def test_client_identifier_ignores_the_header_when_no_proxy_is_trusted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_HOPS", 0)
+    request = _request({"X-Forwarded-For": "6.6.6.6"}, ("198.51.100.4", 5000))
+    assert rate_limiter.client_identifier(request) == "198.51.100.4"
 
 
 def test_client_identifier_falls_back_to_the_socket_address() -> None:
@@ -137,3 +166,17 @@ async def test_one_client_being_blocked_does_not_affect_another(api: httpx.Async
 
     other = await api.post("/api/complaints", headers={"X-Forwarded-For": "198.51.100.9"})
     assert other.status_code == 200
+
+
+async def test_spoofing_x_forwarded_for_does_not_evade_the_limit(api: httpx.AsyncClient) -> None:
+    # A blocked client sends a different fake first entry every time; the trailing
+    # entry is what our proxy saw and never changes, so the limit still applies.
+    statuses = [
+        (
+            await api.post(
+                "/api/complaints", headers={"X-Forwarded-For": f"6.6.6.{n}, 203.0.113.7"}
+            )
+        ).status_code
+        for n in range(6)
+    ]
+    assert statuses == [200, 200, 200, 429, 429, 429]

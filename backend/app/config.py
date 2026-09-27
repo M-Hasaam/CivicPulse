@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_MAX_REQUESTS: int = 10
     RATE_LIMIT_WINDOW_SECONDS: int = 60
 
+    # Reverse proxies we control in front of the backend (nginx, ingress). Only the
+    # X-Forwarded-For entries they append are trusted; 0 ignores the header entirely.
+    TRUSTED_PROXY_HOPS: int = 1
+
     # Real environment variables always win over the file (Compose, Kubernetes, CI)
     model_config = SettingsConfigDict(env_file=REPO_ROOT_ENV, extra="ignore")
 

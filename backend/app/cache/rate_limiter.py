@@ -14,15 +14,22 @@ logger = logging.getLogger(__name__)
 
 
 def client_identifier(request: Request) -> str:
-    """Who to rate-limit: the real client, not the reverse proxy in front of us.
+    """Who to rate-limit: the real client, without trusting what the client says about itself.
 
-    Behind nginx/ingress every request arrives from the proxy's IP, so we use the
-    first X-Forwarded-For entry. That header is only trustworthy when a proxy we
-    control sets it; a client hitting the backend directly could spoof it.
+    Each proxy we run appends the address it saw to X-Forwarded-For, so with N trusted
+    proxies the Nth entry from the END is the real client. Everything before it was
+    supplied by the client and is ignored: taking the first entry would let anyone
+    dodge the limit by sending a different fake address on every request.
+
+    Falls back to the socket address when the header is absent or shorter than the
+    number of trusted proxies (a request that did not come through our proxies).
     """
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    hops = settings.TRUSTED_PROXY_HOPS
+    if hops > 0:
+        entries = [e.strip() for e in request.headers.get("x-forwarded-for", "").split(",")]
+        entries = [e for e in entries if e]
+        if len(entries) >= hops:
+            return entries[-hops]
     return request.client.host if request.client else "unknown"
 
 
