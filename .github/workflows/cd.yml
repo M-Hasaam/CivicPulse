@@ -1,10 +1,8 @@
 ﻿name: CD
 
 on:
-  workflow_run:
-    workflows: [CI, Security and manifests, Compose smoke]
+  push:
     branches: [main]
-    types: [completed]
   workflow_dispatch:
 
 concurrency:
@@ -16,20 +14,49 @@ permissions:
   packages: write
 
 jobs:
-  publish-and-deploy:
-    name: Publish GHCR images and deploy to kind
+  quality-gate:
+    name: CD quality gate
     runs-on: ubuntu-24.04
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_NAMESPACE: ${{ github.repository_owner }}/civicpulse
+    permissions:
+      contents: read
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Validate Compose files
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker compose --env-file .env.example -f compose.yaml config --quiet
+          docker compose --env-file .env.example -f compose.prod.yaml config --quiet
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          version: v1.31.0
+
+      - name: Render production manifests
+        run: kubectl kustomize k8s/overlays/prod > rendered-prod.yaml
+
+      - name: Validate manifests with kubeconform
+        uses: docker://ghcr.io/yannh/kubeconform:v0.6.7
+        with:
+          entrypoint: /kubeconform
+          args: >-
+            -strict
+            -summary
+            -ignore-missing-schemas
+            rendered-prod.yaml
+
+  publish-and-deploy:
+    name: Publish GHCR images and deploy to kind
+    runs-on: ubuntu-24.04
+    needs: quality-gate
+    env:
+      REGISTRY: ghcr.io
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
 
       - name: Set image metadata
         id: meta
@@ -99,11 +126,7 @@ jobs:
             migrate=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
             frontend=${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.sha }} \
             -o yaml > rendered-prod-sha.yaml
-          kubectl patch --local -f rendered-prod-sha.yaml \
-            --type=json \
-            -p='[{"op":"add","path":"/spec/template/spec/imagePullSecrets","value":[{"name":"ghcr-pull"}]}]' \
-            -o yaml > rendered-prod-sha-pullsecret.yaml || cp rendered-prod-sha.yaml rendered-prod-sha-pullsecret.yaml
-          kubectl apply -f rendered-prod-sha-pullsecret.yaml
+          kubectl apply -f rendered-prod-sha.yaml
           kubectl wait --for=condition=complete job/migrate -n civicpulse --timeout=180s
           kubectl rollout status deployment/backend -n civicpulse --timeout=180s
           kubectl rollout status deployment/frontend -n civicpulse --timeout=180s
