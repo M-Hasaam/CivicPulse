@@ -43,7 +43,8 @@ async def test_stats_first_read_is_a_miss_second_is_a_hit(redis: Redis) -> None:
 async def test_stats_entry_expires_via_ttl(redis: Redis) -> None:
     await stats_cache.get_stats(redis, Loader())
     ttl = await redis.ttl(stats_cache.STATS_KEY)
-    assert 0 < ttl <= stats_cache.STATS_TTL_SECONDS
+    assert stats_cache.STATS_TTL_SECONDS == 30  # the brief's 30 s TTL
+    assert 0 < ttl <= 30
 
 
 async def test_invalidate_forces_the_next_read_to_reload(redis: Redis) -> None:

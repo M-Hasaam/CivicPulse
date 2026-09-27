@@ -9,7 +9,7 @@ from redis.exceptions import RedisError
 logger = logging.getLogger(__name__)
 
 STATS_KEY = "cache:stats"
-STATS_TTL_SECONDS = 60
+STATS_TTL_SECONDS = 30
 
 # Values for the X-Cache response header.
 HIT = "HIT"
