@@ -11,7 +11,10 @@ from app.config import settings
 from app.metrics import REQUEST_COUNT, REQUEST_LATENCY
 from app.providers.triage.factory import get_triage_provider
 from app.repositories.database import engine
+from app.routes.complaints import router as complaints_router
+from app.routes.errors import register_error_handlers
 from app.routes.health import router as health_router
+from app.routes.stats import router as stats_router
 from app.services.triage_service import TriageOrchestrator
 
 logger = logging.getLogger("civicpulse")
@@ -65,4 +68,7 @@ async def root() -> dict[str, str]:
     return {"message": "Hello from CivicPulse", "environment": settings.ENVIRONMENT}
 
 
+register_error_handlers(app)
+app.include_router(complaints_router)
+app.include_router(stats_router)
 app.include_router(health_router)
