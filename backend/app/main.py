@@ -2,9 +2,11 @@ import logging
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import httpx
 from fastapi import FastAPI, Request, Response
+from fastapi.openapi.utils import get_openapi
 
 from app.cache.client import close_redis, connect_redis
 from app.config import settings
@@ -72,3 +74,18 @@ register_error_handlers(app)
 app.include_router(complaints_router)
 app.include_router(stats_router)
 app.include_router(health_router)
+
+
+def _openapi_without_422() -> dict[str, Any]:
+    """Validation errors are answered with 400 (see routes/errors.py), so drop the
+    422 FastAPI documents by default - the typed frontend client reads this schema."""
+    if app.openapi_schema is None:
+        schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
+        for path in schema["paths"].values():
+            for operation in path.values():
+                operation.get("responses", {}).pop("422", None)
+        app.openapi_schema = schema
+    return app.openapi_schema
+
+
+app.openapi = _openapi_without_422  # type: ignore[method-assign]

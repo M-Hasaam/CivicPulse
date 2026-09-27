@@ -7,6 +7,9 @@ from redis.asyncio import Redis
 
 # Settings require DATABASE_URL; tests never connect, so any well-formed URL works.
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@db.invalid:5432/test")
+# Real environment variables beat the developer's .env: tests must never reach a live
+# LLM (non-deterministic, rate-limited, and it would spend the key's quota).
+os.environ["TRIAGE_PROVIDER"] = "simulated"
 
 
 @pytest.fixture

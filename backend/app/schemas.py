@@ -85,3 +85,14 @@ class ProviderMeta(BaseModel):
 
 class ErrorOut(BaseModel):
     detail: str
+
+
+class FieldError(BaseModel):
+    field: str
+    in_: str = Field(alias="in", description="body, query or path")
+    message: str
+
+
+class ValidationErrorOut(BaseModel):
+    detail: str
+    errors: list[FieldError]
