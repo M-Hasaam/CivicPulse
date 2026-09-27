@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -14,10 +15,16 @@ class Settings(BaseSettings):
     # PostgreSQL 16 - required, never defaulted: credentials come from the environment only
     DATABASE_URL: str
 
-    # AI triage. SecretStr keeps the key out of repr() and logs.
+    # AI triage: llm (Groq) | ollama (offline) | rules | simulated (CI)
+    TRIAGE_PROVIDER: Literal["llm", "ollama", "rules", "simulated"] = "rules"
+    # SecretStr keeps the key out of repr() and logs.
     GROQ_API_KEY: SecretStr = SecretStr("")
     GROQ_MODEL: str = "openai/gpt-oss-20b"
     TRIAGE_TIMEOUT_SECONDS: float = 10.0
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2:1b"
+    SIMULATED_TRIAGE_FAILURE: Literal["none", "raise", "malformed"] = "none"
+    SIMULATED_TRIAGE_SEED: int = 0
 
     # Real environment variables always win over the file (Compose, Kubernetes, CI)
     model_config = SettingsConfigDict(env_file=REPO_ROOT_ENV, extra="ignore")
