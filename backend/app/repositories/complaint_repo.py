@@ -24,6 +24,24 @@ class ComplaintRepository:
     async def get_by_id(self, complaint_id: uuid.UUID) -> ComplaintModel | None:
         return await self.session.get(ComplaintModel, complaint_id)
 
+    async def get_by_id_for_update(self, complaint_id: uuid.UUID) -> ComplaintModel | None:
+        """Like get_by_id, but locks the row (SELECT ... FOR UPDATE) until the
+        surrounding transaction commits or rolls back.
+
+        Without this, two concurrent status changes on the same complaint can both
+        read the old status, both pass the state-machine check against it, and both
+        commit - a classic lost update where the loser's write silently disappears
+        and its 200 response lies about the final state. With the lock, the second
+        request's read blocks until the first commits, then it re-reads the row and
+        validates against the *current* status, so at most one of two conflicting
+        transitions can ever succeed.
+        """
+        return await self.session.scalar(self._for_update_statement(complaint_id))
+
+    @staticmethod
+    def _for_update_statement(complaint_id: uuid.UUID) -> Select[ComplaintModel]:
+        return select(ComplaintModel).where(ComplaintModel.id == complaint_id).with_for_update()
+
     async def get_by_text(self, text: str) -> ComplaintModel | None:
         result = await self.session.execute(
             select(ComplaintModel).where(ComplaintModel.text == text).limit(1)
