@@ -1,66 +1,49 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
-import { Send, LayoutDashboard, BarChart3 } from 'lucide-react';
+import { ThemePicker } from "./ThemePicker";
+import { NavLink } from "react-router-dom";
+import { Activity, Send, LayoutDashboard, BarChart3 } from "lucide-react";
 
-export const Navbar: React.FC = () => {
+export function Navbar() {
   return (
     <header className="navbar">
       <div className="container nav-container">
-        <NavLink to="/submit" className="nav-brand" style={{ textDecoration: 'none' }}>
-          <div
-            style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: '1.1rem',
-            }}
-          >
-            CP
-          </div>
+        <NavLink
+          to="/submit"
+          className="nav-brand"
+          aria-label="CivicPulse home"
+        >
+          <span className="brand-mark">
+            <Activity size={23} />
+          </span>
           <span>
-            Civic<span style={{ color: 'var(--primary)' }}>Pulse</span>
+            CivicPulse<small>COMMUNITY SERVICES</small>
           </span>
         </NavLink>
-
-        <nav className="nav-links">
+        <nav className="nav-links" aria-label="Main navigation">
           <NavLink
             id="nav-submit-btn"
             to="/submit"
-            className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+            className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-              <Send size={16} /> Submit
-            </span>
+            <Send size={16} /> Submit
           </NavLink>
-
           <NavLink
             id="nav-dashboard-btn"
             to="/dashboard"
-            className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+            className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-              <LayoutDashboard size={16} /> Operations
-            </span>
+            <LayoutDashboard size={16} /> Operations
           </NavLink>
-
           <NavLink
             id="nav-stats-btn"
             to="/stats"
-            className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+            className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-              <BarChart3 size={16} /> Statistics
-            </span>
+            <BarChart3 size={16} /> Statistics
           </NavLink>
         </nav>
+        <ThemePicker />
       </div>
     </header>
   );
-};
-
+}
 export default Navbar;
