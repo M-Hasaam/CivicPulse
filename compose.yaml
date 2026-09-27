@@ -5,7 +5,8 @@
 #   edge      frontend <-> backend. Normal bridge, so the backend can also reach Groq.
 #   internal  backend <-> postgres <-> redis. internal: true = no route to the outside
 #             world, and nothing on edge can reach it: the frontend has no path to data.
-# The backend is the only service on both.
+#   models    ollama only: lets it download model weights. Nothing else is on it.
+# The backend is the only service on both edge and internal.
 
 name: civicpulse
 
@@ -67,6 +68,8 @@ services:
       RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-10}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
       TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
     # Development only: the host's source is mounted over the image's copy and
     # uvicorn reloads on change. compose.prod.yaml runs exactly what was built
     # and scanned, so it has neither the mount nor --reload.
@@ -91,6 +94,40 @@ services:
     deploy:
       resources:
         limits: {cpus: "1.0", memory: 512M}
+
+  # Fully offline triage (TRIAGE_PROVIDER=ollama). The backend does not depend on
+  # it: if Ollama is down or still loading, triage falls back to the rules.
+  ollama:
+    image: ollama/ollama:0.5.7
+    restart: unless-stopped
+    environment:
+      # Keep the model loaded: the default unloads it after 5 idle minutes, and a
+      # cold load (~8-20 s on CPU) exceeds the 10 s triage timeout.
+      OLLAMA_KEEP_ALIVE: 24h
+    volumes:
+      - ollama_models:/root/.ollama
+    networks: [internal, models]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: {cpus: "4.0", memory: 3G}  # CPU inference: fewer cores push a triage past the 10 s timeout
+
+  # Pulls the model into the volume once (later runs find it at once), then runs
+  # one tiny prompt so the model is already in memory for the first complaint.
+  ollama-pull:
+    image: ollama/ollama:0.5.7
+    entrypoint: ["sh", "-c", "ollama pull \"$$MODEL\" && ollama run \"$$MODEL\" ok > /dev/null && echo \"$$MODEL loaded\""]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    networks: [internal]
+    depends_on:
+      ollama: {condition: service_healthy}
+    restart: "no"
 
   # One-shot jobs on the backend image: run, then exit 0.
   migrate:
@@ -120,7 +157,10 @@ networks:
   internal:
     driver: bridge
     internal: true
+  models:
+    driver: bridge
 
 volumes:
   pgdata:     # PostgreSQL data directory: the durable one
   redisdata:  # Redis AOF log
+  ollama_models:  # model weights, so ~1.3 GB is not re-pulled on every up
