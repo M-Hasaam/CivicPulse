@@ -10,6 +10,7 @@ from fastapi.openapi.utils import get_openapi
 
 from app.cache.client import close_redis, connect_redis
 from app.config import settings
+from app.logging_config import configure_logging, request_id_from_header, request_id_var
 from app.metrics import REQUEST_COUNT, REQUEST_LATENCY
 from app.providers.triage.factory import get_triage_provider
 from app.repositories.database import engine
@@ -19,6 +20,7 @@ from app.routes.health import router as health_router
 from app.routes.stats import router as stats_router
 from app.services.triage_service import TriageOrchestrator
 
+configure_logging(settings.LOG_LEVEL)
 logger = logging.getLogger("civicpulse")
 
 
@@ -49,20 +51,36 @@ app = FastAPI(title="CivicPulse API", lifespan=lifespan)
 
 
 @app.middleware("http")
-async def metrics_middleware(request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]
-    start_time = time.perf_counter()
-    response: Response = await call_next(request)
-    duration = time.perf_counter() - start_time
+async def request_context(request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]
+    """Request id, one JSON access-log line and metrics for every request."""
+    request_id = request_id_from_header(request.headers.get("x-request-id"))
+    token = request_id_var.set(request_id)
+    started = time.perf_counter()
+    try:
+        response: Response = await call_next(request)
+        duration = time.perf_counter() - started
+        response.headers["X-Request-ID"] = request_id
 
-    # Label by route template (/api/complaints/{complaint_id}), never the raw path:
-    # one time series per URL would grow without bound.
-    route = request.scope.get("route")
-    endpoint = getattr(route, "path", "unmatched")
-    REQUEST_COUNT.labels(
-        method=request.method, endpoint=endpoint, status_code=str(response.status_code)
-    ).inc()
-    REQUEST_LATENCY.labels(method=request.method, endpoint=endpoint).observe(duration)
-    return response
+        # Label by route template (/api/complaints/{complaint_id}), never the raw path:
+        # one time series per URL would grow without bound.
+        route = request.scope.get("route")
+        endpoint = getattr(route, "path", "unmatched")
+        REQUEST_COUNT.labels(
+            method=request.method, endpoint=endpoint, status_code=str(response.status_code)
+        ).inc()
+        REQUEST_LATENCY.labels(method=request.method, endpoint=endpoint).observe(duration)
+        logger.info(
+            "request completed",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "status": response.status_code,
+                "duration_ms": round(duration * 1000, 1),
+            },
+        )
+        return response
+    finally:
+        request_id_var.reset(token)
 
 
 @app.get("/")
