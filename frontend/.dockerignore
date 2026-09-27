@@ -1,0 +1,26 @@
+# Only what the image needs goes to the daemon: package*.json and source.
+# Everything below is local state, build output or editor/test-only.
+
+.git
+.gitignore
+.env
+.env.*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# tests never ship
+src/test
+src/**/__tests__
+coverage
+
+# docs and editor files
+*.md
+.vscode
+.idea
+
+Dockerfile
+.dockerignore
+nginx.conf
