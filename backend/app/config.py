@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # AI triage. SecretStr keeps the key out of repr() and logs.
     GROQ_API_KEY: SecretStr = SecretStr("")
-    GROQ_MODEL: str = "llama-3.1-8b-instant"
+    GROQ_MODEL: str = "openai/gpt-oss-20b"
     TRIAGE_TIMEOUT_SECONDS: float = 10.0
 
     # Real environment variables always win over the file (Compose, Kubernetes, CI)
