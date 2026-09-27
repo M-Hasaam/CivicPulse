@@ -308,3 +308,16 @@ pre,
 .spinner {
   animation: spin 1s linear infinite;
 }
+
+/* progress-slide keyframe — used via Tailwind arbitrary animation:
+   animate-[progress-slide_1.4s_ease-in-out_infinite] */
+@keyframes progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(400%);
+  }
+}
+
