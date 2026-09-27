@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, SlidersHorizontal } from 'lucide-react';
 import {
   ApiConflictError,
@@ -42,7 +42,15 @@ export function DashboardPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // Every filter/page/refresh change starts a new request, but a slow response
+  // for an older request can still arrive after a newer one. Track which fetch
+  // is the latest and ignore anything else that resolves - otherwise a stale
+  // response can overwrite the current view (and clobber its loading/error
+  // state) with results for filters the user has already changed away from.
+  const latestRequestId = useRef(0);
+
   const fetchComplaints = useCallback(async () => {
+    const requestId = ++latestRequestId.current;
     setLoading(true);
     setError(null);
     try {
@@ -56,11 +64,14 @@ export function DashboardPage() {
       if (filters.category) params.category = filters.category;
       if (filters.priority) params.priority = filters.priority;
       if (filters.status) params.status = filters.status;
-      setData(await listComplaints(params));
+      const result = await listComplaints(params);
+      if (requestId !== latestRequestId.current) return;
+      setData(result);
     } catch {
+      if (requestId !== latestRequestId.current) return;
       setError('Failed to load complaints. Check your connection and try again.');
     } finally {
-      setLoading(false);
+      if (requestId === latestRequestId.current) setLoading(false);
     }
   }, [filters, page, pageSize]);
 
