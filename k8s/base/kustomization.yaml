@@ -9,6 +9,7 @@ resources:
   - frontend.yaml
   - ingress.yaml
   - hpa.yaml
+  - pdb.yaml
 configMapGenerator:
   - name: civicpulse-config
     literals:

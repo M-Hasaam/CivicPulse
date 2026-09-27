@@ -110,6 +110,12 @@ spec:
                 secretKeyRef:
                   name: civicpulse-secrets
                   key: GROQ_API_KEY
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 2
           readinessProbe:
             httpGet:
               path: /ready
