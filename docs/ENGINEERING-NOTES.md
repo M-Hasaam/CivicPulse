@@ -128,6 +128,34 @@ then deliberately update `backend.yaml`'s `resources.requests` and re-test) is t
 resolution — VPA informs a static, reviewed decision instead of continuously fighting the HPA
 for control of the same number.
 
+**Ran the actual loop, not just described it.** With `cpu.requests: 100m` (the original
+guess), `kubectl describe vpa backend-vpa` reported `Target: 548m` after observing the load
+test from question 5 (`docs/evidence/vpa-1-describe-recommendation-before.txt`) — over 5x the
+original guess, confirming question 5's finding directly. Updated
+`k8s/base/backend.yaml`'s `cpu.requests` to `550m` (and `cpu.limits` from `500m` to `1000m` to
+keep burst headroom above the new request), re-applied, and re-ran the identical k6 load test:
+
+| | Before (`100m` request) | After (`550m` request) |
+| --- | --- | --- |
+| Peak CPU utilization shown | 300-400%+ of target | 46-160% of target |
+| Replicas reached | 5 (`maxReplicas`, hit almost immediately) | 4 (settled, ceiling never reached) |
+| Rescale lag from load onset | 42s (to 4→5) | 45s (to 2→3) |
+| Behavior after settling | Pegged at max, still over target | Hovering 46-67%, close to the 70% target |
+
+(Full data: `docs/evidence/vpa-2-hpa-after-fix-chart.png`, `vpa-3-scaling-events-before-and-after.txt`,
+`vpa-4-kubectl-get-hpa-watch-after-fix.txt`.)
+
+**What actually changed, and what didn't:** the *lag* (~42-45s) barely moved — that number is
+dominated by metrics-server's scrape interval and the HPA's sync period, neither of which
+resource requests affect. What changed is *how many replicas the same offered load actually
+needs*: before, the HPA was reacting to a wildly inflated utilization percentage (the same CPU
+usage read as 300-400% of an artificially small denominator) and saturated at the ceiling
+immediately, with no signal left to distinguish "just over target" from "far over target."
+After the fix, utilization tracks the real 70% target meaningfully, and the HPA has headroom
+left before `maxReplicas` for a genuinely larger spike. This is the concrete version of the
+scored point above: an undersized request doesn't just cost VPA marks on paper, it makes the
+HPA's own numbers stop meaning anything.
+
 ## 7. The `internal: true` network and the hosted LLM
 
 `compose.yaml:180-185` marks both `internal` (Postgres/Redis) and `llm` (Ollama) as

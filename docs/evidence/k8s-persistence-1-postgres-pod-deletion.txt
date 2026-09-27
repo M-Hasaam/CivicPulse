@@ -1,0 +1,48 @@
+K8s persistence proof: deleting the Postgres pod preserves every row
+======================================================================
+
+Brief requirement (Data layer, D): "On Kubernetes, deleting the Postgres pod must
+preserve every row. You will demonstrate both [Compose and Kubernetes]." The Compose
+half is docs/evidence/compose-api-create-complaint-201.png; this is the Kubernetes half,
+run against the local kind cluster deployed via `kubectl apply -k k8s/overlays/prod`.
+
+1. Create a complaint through the running stack:
+
+   $ curl -X POST http://127.0.0.1:8080/api/complaints -H 'Host: civicpulse.localhost' \
+       -H 'Content-Type: application/json' \
+       --data '{"text":"Manhole cover missing near F-7 Markaz, real danger to pedestrians at night.","location":"F-7 Markaz","reporter_contact":"persistence-demo@example.com"}'
+
+   {"id":"97c88b66-b46d-46e1-8157-7ae9f8983787", ...,
+    "created_at":"2026-09-27T19:45:56.499075Z", "updated_at":"2026-09-27T19:45:56.499075Z"}
+
+2. Confirm the PVC backing Postgres is Bound (postgres.yaml's StatefulSet, not a bare
+   Deployment - the brief marks a Deployment for a database as an error):
+
+   $ kubectl get pvc -n civicpulse
+   NAME                       STATUS   VOLUME                                     CAPACITY   ACCESS MODES
+   postgres-data-postgres-0   Bound    pvc-c949d5f3-9ff0-4919-908e-681e6db7b815   1Gi        RWO
+
+3. Delete the running Postgres pod outright:
+
+   $ kubectl delete pod postgres-0 -n civicpulse
+   pod "postgres-0" deleted from civicpulse namespace
+
+   $ kubectl wait --for=condition=ready pod/postgres-0 -n civicpulse --timeout=120s
+   pod/postgres-0 condition met
+
+4. The StatefulSet recreates postgres-0 as a genuinely new pod (new UID, fresh
+   startTime after the deletion), remounting the same PVC:
+
+   $ kubectl get pod postgres-0 -n civicpulse -o jsonpath='{.metadata.uid}{"\n"}{.status.startTime}{"\n"}'
+   5bb52ff3-3d85-4213-bf5d-c177b619f7d2
+   2026-09-27T19:46:04Z
+
+5. GET the same complaint by id, through the fresh pod:
+
+   $ curl http://127.0.0.1:8080/api/complaints/97c88b66-b46d-46e1-8157-7ae9f8983787 -H 'Host: civicpulse.localhost'
+   {"id":"97c88b66-b46d-46e1-8157-7ae9f8983787", ...,
+    "created_at":"2026-09-27T19:45:56.499075Z", "updated_at":"2026-09-27T19:45:56.499075Z"}
+
+   Identical row, identical created_at timestamp (19:45:56, before the pod was ever
+   deleted) - returned by a pod that only started existing at 19:46:04. The row lived
+   in the PVC the whole time, not in the pod that got deleted.
