@@ -29,7 +29,8 @@ ENV PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-RUN groupadd --system app && useradd --system --gid app --no-create-home app
+RUN groupadd --system --gid 999 app \
+    && useradd --system --uid 999 --gid app --no-create-home app
 
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
