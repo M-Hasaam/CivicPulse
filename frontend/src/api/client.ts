@@ -1,5 +1,27 @@
+/**
+ * Typed API client generated from the backend's OpenAPI schema.
+ *
+ * HOW THE TYPES ARE GENERATED
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 1. Start the backend:  python -m uvicorn app.main:app --reload
+ * 2. Fetch the schema:   curl http://localhost:8000/openapi.json -o src/api/openapi.json
+ * 3. Generate types:     npm run generate:api
+ *    (runs: openapi-typescript src/api/openapi.json -o src/api/schema.ts)
+ *
+ * src/api/schema.ts is committed so the frontend can be built without the
+ * backend running, but it must be regenerated whenever the backend schema
+ * changes (new fields, new endpoints, changed enums).
+ *
+ * WHY openapi-fetch
+ * ─────────────────────────────────────────────────────────────────────────────
+ * openapi-fetch wraps the generated schema in a fetch client that enforces the
+ * correct request body shape and response type for every endpoint at compile
+ * time. A mismatched path, wrong body field or missing required param is a
+ * TypeScript error, not a runtime 422.
+ */
 import createClient from 'openapi-fetch';
 import type { components, paths } from './schema';
+
 
 // Same-origin, resolved at runtime from window.location - never a baked-in
 // backend host. Every operation path in the generated schema already starts

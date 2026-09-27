@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
@@ -15,4 +15,15 @@ export default defineConfig({
       },
     },
   },
+  test: {
+    // Run tests in a browser-like environment so React components can render.
+    environment: 'jsdom',
+    // Loads @testing-library/jest-dom matchers (toBeInTheDocument, etc.)
+    // before every test file without needing an explicit import in each file.
+    setupFiles: ['src/test/setup.ts'],
+    // Expose describe / it / expect as globals — matches Jest's API surface,
+    // which is what @testing-library documentation examples use.
+    globals: true,
+  },
 })
+
