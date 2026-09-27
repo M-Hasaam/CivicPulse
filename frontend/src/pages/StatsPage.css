@@ -1,0 +1,233 @@
+.stats-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.stats-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.stats-summary-card,
+.stats-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.stats-summary-card {
+  min-height: 112px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.stats-summary-card svg {
+  color: #a5b4fc;
+}
+
+.stats-summary-card span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.stats-summary-card strong {
+  color: var(--text-primary);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.stats-panel {
+  padding: 1rem;
+}
+
+.stats-panel h3 {
+  margin: 0 0 1rem;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.stats-empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.stats-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.stats-bar-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 2fr) 3rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stats-bar-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.stats-bar-label strong,
+.stats-bar-pct {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.stats-bar-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.stats-bar-fill {
+  height: 100%;
+  min-width: 3px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6366f1, #22c55e);
+}
+
+.stats-bar-pct {
+  text-align: right;
+  font-size: 0.78rem;
+}
+
+.cache-pill {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.cache-hit {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.24);
+}
+
+.cache-miss {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.24);
+}
+
+.cache-bypass {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.24);
+}
+
+.cache-unknown {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.meta-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.meta-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 0.65rem;
+}
+
+.meta-list div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.meta-list dt {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.meta-list dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.outcome-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.outcome-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.outcome-row strong,
+.outcome-row span {
+  display: block;
+}
+
+.outcome-row strong {
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.outcome-row span {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.outcome-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+@media (max-width: 900px) {
+  .stats-summary-grid,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-bar-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .stats-bar-pct {
+    text-align: left;
+  }
+}

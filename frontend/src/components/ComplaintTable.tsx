@@ -27,16 +27,11 @@ function formatRelative(isoDate: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-const NEXT_STATUSES: Record<Status, Status[]> = {
-  open:        ['in_progress', 'rejected'],
-  in_progress: ['resolved', 'rejected'],
-  resolved:    [],
-  rejected:    [],
-};
-
 const STATUS_LABELS: Record<Status, string> = {
   open: 'Open', in_progress: 'In Progress', resolved: 'Resolved', rejected: 'Rejected',
 };
+
+const STATUSES = Object.keys(STATUS_LABELS) as Status[];
 
 interface ComplaintTableProps {
   items: Complaint[];
@@ -95,7 +90,7 @@ function ComplaintRow({
   pending: boolean;
   onStatusChange: (id: string, s: Status) => void;
 }) {
-  const next = NEXT_STATUSES[c.status];
+  const options = STATUSES.filter((status) => status !== c.status);
   const cat  = CATEGORY_CONFIG[c.category];
   const pri  = PRIORITY_CONFIG[c.priority];
 
@@ -124,7 +119,7 @@ function ComplaintRow({
 
       <td>
         <ActionSelect
-          options={next.map((s): ActionOption => ({ value: s, label: STATUS_LABELS[s] }))}
+          options={options.map((s): ActionOption => ({ value: s, label: STATUS_LABELS[s] }))}
           onSelect={(v) => onStatusChange(c.id, v as Status)}
           ariaLabel={`Change status for ${c.location}`}
           disabled={pending}
