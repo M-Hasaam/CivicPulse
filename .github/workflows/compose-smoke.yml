@@ -1,4 +1,4 @@
-﻿name: Compose smoke
+name: Compose smoke
 
 on:
   pull_request:
