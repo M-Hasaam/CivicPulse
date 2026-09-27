@@ -7,7 +7,7 @@ Kept honest on purpose: an empty row here is a to-do, not an oversight to hide.
 
 | Rubric line | Marks | Evidence | Status |
 | --- | --- | --- | --- |
-| `main` protected: no direct push, PR required, CI required, ≥ 1 approval | 3 | `branch-protection-1.png` (ruleset active, empty bypass list, targets `main`)<br>`branch-protection-2-rules.png` (require PR, require status checks, block force pushes, restrict deletions)<br>`branch-protection-3-required-approvals.png` (Required approvals: **1**) | 🟡 Partial — required **status checks list** still empty (screenshot pending `ci.yml`) |
+| `main` protected: no direct push, PR required, CI required, ≥ 1 approval | 3 | `branch-protection-1.png` (ruleset active, empty bypass list, targets `main`)<br>`branch-protection-2-rules.png` (require PR, require status checks, block force pushes, restrict deletions)<br>`branch-protection-3-required-approvals.png` (Required approvals: **1**)<br>`branch-protection-4-pr33-checks-before-required.png` (PR #33 green, before the required-checks list was configured)<br>`branch-protection-5-required-status-checks.png` (ruleset settings: all 7 CI/CD checks wired up as **required**)<br>`branch-protection-6-pr33-checks-marked-required.png` (PR #33 green again, each check now labeled **Required**) | ✅ Complete |
 | One deliberate merge conflict, resolved, with markers/resolution/merge evidence and 2–4 sentences on why that version won | 3 | `merge-conflict-1..3-markers-*.png` (conflict markers in `.env.example`, `pyproject.toml`, `config.py`)<br>`merge-conflict-4-resolved-config.png`<br>`merge-conflict-5-merge-commit.png`<br>`MERGE-CONFLICT.md` (what conflicted, reproducible `git log`/`git diff-tree` output, why the resolution won) | ✅ Complete |
 
 ## G · Docker and Compose
@@ -35,7 +35,7 @@ Kept honest on purpose: an empty row here is a to-do, not an oversight to hide.
 
 | Rubric line | Marks | Evidence | Status |
 | --- | --- | --- | --- |
-| Evidence of a red pipeline blocking a merge, then green | 1 | — | 🔴 Not started — needs `ci.yml` (Burhan's `feature/ci`) and a PR with a deliberately failing test |
+| Evidence of a red pipeline blocking a merge, then green | 1 | `ci-pipeline-1-pr33-red-in-progress.png` (PR #33, backend lint check failing, other checks still running)<br>`ci-pipeline-2-pr33-red-blocked.png` (backend lint failed, 6 others passed, merge button disabled)<br>`ci-pipeline-3-pr33-red-blocked-tooltip.png` (same state, "Merging is blocked due to failing merge requirements" tooltip visible)<br>`ci-pipeline-4-pr33-green-unblocked.png` (`test: introduce a deliberate lint failure...` commit `3b87b37` failing, its `Revert "test: ..."` commit `4d0591a` fixing it, all 7 checks green, merge enabled — same PR) | ✅ Complete |
 
 ## J · Documentation
 
