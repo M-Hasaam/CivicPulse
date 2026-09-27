@@ -22,22 +22,28 @@ Needs only Docker Desktop.
 ```powershell
 git clone https://github.com/M-Hasaam/CivicPulse.git
 cd CivicPulse
-Copy-Item .env.example .env      # macOS/Linux: cp .env.example .env; then set POSTGRES_PASSWORD
-docker compose up -d --build
+Copy-Item .env.example .env      # macOS/Linux: cp .env.example .env
+docker compose up -d --build --scale ollama=0 --scale ollama-pull=0
 ```
 
-On first start the stack:
+That starts the app with the default rules triage, so no API key or local model
+download is needed. On first start the stack:
+
 - waits for Postgres and Redis to become healthy;
 - runs the database migration (`migrate`);
 - loads 32 demo complaints (`seed`, safe to repeat);
-- pulls and warms the Ollama model (~1.3 GB, only once);
 - starts the backend, then the frontend once the backend is healthy.
+
+To use offline Ollama triage instead, set `TRIAGE_PROVIDER=ollama` in `.env`
+and run `docker compose up -d --build`; the first run pulls and warms the
+configured model into the `ollama_models` volume.
 
 Open **http://localhost** for the app. The API docs are at
 http://localhost/docs, and http://localhost/ready reports whether Postgres and
 Redis are reachable through the frontend proxy.
-`docker compose ps -a` should show `migrate`, `seed` and `ollama-pull` as `Exited (0)`
-and every other service `healthy`.
+`docker compose ps -a` should show `migrate` and `seed` as `Exited (0)`, with
+`frontend`, `backend`, `postgres` and `redis` healthy. If you enabled Ollama,
+`ollama-pull` should also show `Exited (0)`.
 
 | Service | Network | Notes |
 | --- | --- | --- |
