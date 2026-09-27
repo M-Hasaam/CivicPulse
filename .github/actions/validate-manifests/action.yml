@@ -1,0 +1,31 @@
+name: Validate manifests
+description: Render the production Kustomize overlay and validate it with kubeconform
+
+runs:
+  using: composite
+  steps:
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v4
+      with:
+        version: v1.31.0
+
+    - name: Prepare prod secrets file (CI placeholder only, never real credentials)
+      shell: bash
+      run: |
+        cat > k8s/overlays/prod/secrets.env <<EOF
+        POSTGRES_PASSWORD=$(openssl rand -hex 24)
+        EOF
+
+    - name: Render production manifests
+      shell: bash
+      run: kubectl kustomize k8s/overlays/prod > rendered-prod.yaml
+
+    - name: Validate manifests with kubeconform
+      uses: docker://ghcr.io/yannh/kubeconform:v0.6.7
+      with:
+        entrypoint: /kubeconform
+        args: >-
+          -strict
+          -summary
+          -ignore-missing-schemas
+          rendered-prod.yaml

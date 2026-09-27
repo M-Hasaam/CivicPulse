@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: civicpulse
+resources:
+  - ../../base
+patches:
+  - path: simulated-provider-patch.yaml
+# Overrides the base's placeholder POSTGRES_PASSWORD (see k8s/base/kustomization.yaml)
+# with a real value from an untracked secrets.env — see secrets.env.example.
+secretGenerator:
+  - name: civicpulse-secrets
+    behavior: merge
+    envs:
+      - secrets.env
+images:
+  - name: ghcr.io/m-hasaam/civicpulse/backend
+    newTag: latest
+  - name: ghcr.io/m-hasaam/civicpulse/frontend
+    newTag: latest

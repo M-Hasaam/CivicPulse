@@ -1,0 +1,81 @@
+name: Compose smoke
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+concurrency:
+  group: compose-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Compose integration smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: civicpulse_ci_${{ github.run_id }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Start stack without Ollama
+        run: |
+          docker compose --env-file .env.example up -d --build --scale ollama=0 --scale ollama-pull=0
+
+      - name: Wait for frontend and backend readiness
+        run: |
+          for i in {1..60}; do
+            if curl --fail --silent 'http://localhost/ready' | grep -q '"status":"ready"'; then
+              exit 0
+            fi
+            docker compose --env-file .env.example ps
+            sleep 5
+          done
+          docker compose --env-file .env.example logs
+          exit 1
+
+      - name: Smoke test request path through frontend nginx
+        run: |
+          curl --fail --silent --output /dev/null 'http://localhost/health'
+          curl --fail --silent 'http://localhost/api/complaints?page=1&page_size=5' --output complaints.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('complaints.json').read_text())
+          assert data['total'] >= 1, data
+          assert len(data['items']) >= 1, data
+          PY
+          curl --fail --silent -X POST http://localhost/api/complaints \
+            -H 'Content-Type: application/json' \
+            --data '{"text":"Street light has been broken for two nights near the school gate.","location":"G-10 Markaz","reporter_contact":"ci@example.com"}' \
+            --output created.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('created.json').read_text())
+          assert data['id']
+          assert data['status'] == 'open'
+          assert data['triaged_by'] in {'rules', 'simulated', 'rules:fallback'}
+          PY
+          curl --fail --silent -D headers.txt 'http://localhost/api/stats' --output stats.json
+          grep -i '^X-Cache:' headers.txt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('stats.json').read_text())
+          assert data['total_complaints'] >= 1, data
+          PY
+
+      - name: Show Compose state on failure
+        if: failure()
+        run: docker compose --env-file .env.example ps && docker compose --env-file .env.example logs
+
+      - name: Stop stack
+        if: always()
+        run: docker compose --env-file .env.example down -v --remove-orphans
