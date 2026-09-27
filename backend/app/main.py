@@ -1,12 +1,46 @@
+import logging
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, Request, Response
 
+from app.cache.client import close_redis, connect_redis
 from app.config import settings
 from app.metrics import REQUEST_COUNT, REQUEST_LATENCY
+from app.providers.triage.factory import get_triage_provider
+from app.repositories.database import engine
 from app.routes.health import router as health_router
+from app.services.triage_service import TriageOrchestrator
 
-app = FastAPI(title="CivicPulse API")
+logger = logging.getLogger("civicpulse")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Create shared clients on the serving event loop; close them on shutdown.
+
+    On SIGTERM uvicorn stops accepting connections and waits for in-flight
+    requests to finish (bounded by --timeout-graceful-shutdown) before this
+    shutdown half runs, so no request loses its Redis, HTTP or database pool.
+    """
+    connect_redis()
+    http_client = httpx.AsyncClient(timeout=settings.TRIAGE_TIMEOUT_SECONDS)
+    app.state.http_client = http_client
+    app.state.triage = TriageOrchestrator(get_triage_provider(settings, http_client))
+    logger.info("startup complete; triage provider %s", app.state.triage.provider.name)
+    try:
+        yield
+    finally:
+        logger.info("shutting down: closing HTTP, Redis and database pools")
+        await http_client.aclose()
+        await close_redis()
+        await engine.dispose()
+        logger.info("shutdown complete")
+
+
+app = FastAPI(title="CivicPulse API", lifespan=lifespan)
 
 
 @app.middleware("http")
