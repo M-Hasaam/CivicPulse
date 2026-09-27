@@ -10,7 +10,9 @@
 
 name: civicpulse
 
-# Shared by every container that talks to Postgres
+# Shared by every container that talks to Postgres. Compose interpolates
+# POSTGRES_PASSWORD here as plain text with no URL-encoding, so it must stay
+# free of @ : / # % ? & (see the constraint documented in .env.example).
 x-database-url: &database-url
   DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
 

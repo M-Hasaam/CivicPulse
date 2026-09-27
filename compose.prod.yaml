@@ -13,6 +13,8 @@ name: civicpulse-prod
 
 x-backend-image: &backend-image ghcr.io/m-hasaam/civicpulse/backend:${IMAGE_TAG:?set IMAGE_TAG to the commit SHA to deploy}
 
+# Interpolated as plain text with no URL-encoding - see the character constraint
+# documented on POSTGRES_PASSWORD in .env.example.
 x-database-url: &database-url
   DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
 
