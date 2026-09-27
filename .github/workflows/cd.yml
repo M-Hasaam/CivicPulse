@@ -135,6 +135,12 @@ jobs:
             migrate=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
             frontend=${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.sha }} \
             -o yaml > rendered-prod-sha.yaml
+          # A Job's pod template is immutable once created, so re-applying "migrate"
+          # with a new image on top of a prior release's completed Job would fail
+          # outright instead of deploying. Delete it first - every release gets a
+          # fresh run. --ignore-not-found covers both "no prior Job" and "no
+          # namespace yet" (first-ever deploy).
+          kubectl delete job/migrate -n civicpulse --ignore-not-found --wait=true
           kubectl apply -f rendered-prod-sha.yaml
           kubectl wait --for=condition=complete job/migrate -n civicpulse --timeout=180s
           kubectl rollout status deployment/backend -n civicpulse --timeout=180s

@@ -14,6 +14,25 @@ spec:
       restartPolicy: OnFailure
       imagePullSecrets:
         - name: ghcr-pull
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          command: ["sh", "-c"]
+          args:
+            - |
+              for i in $(seq 1 60); do
+                pg_isready -h postgres -p 5432 -U "$POSTGRES_USER" && exit 0
+                echo "waiting for postgres ($i/60)..."
+                sleep 2
+              done
+              echo "postgres never became ready" >&2
+              exit 1
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: civicpulse-secrets
+                  key: POSTGRES_USER
       containers:
         - name: migrate
           image: ghcr.io/m-hasaam/civicpulse/backend:dev
