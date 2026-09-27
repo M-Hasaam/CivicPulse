@@ -1,34 +1,40 @@
-import { useState } from 'react';
-import { Navbar, type Tab } from './components/Navbar';
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
+import { Navbar } from './components/Navbar';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { SubmitPage } from './pages/SubmitPage';
 
 export function App() {
-  const [currentTab, setCurrentTab] = useState<Tab>('submit');
-
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Navbar currentTab={currentTab} onSelectTab={setCurrentTab} />
+    <BrowserRouter>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <Navbar />
 
-      <main style={{ flex: 1 }}>
-        <div className="container" style={{ padding: '2rem 1.5rem' }}>
-          {currentTab === 'submit' && <SubmitPage />}
-          {currentTab === 'dashboard' && <h2>Dashboard</h2>}
-          {currentTab === 'stats' && <h2>Stats</h2>}
-        </div>
-      </main>
+        <main style={{ flex: 1 }}>
+          <div className="container" style={{ padding: '2rem 1.5rem' }}>
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/" element={<Navigate to="/submit" replace />} />
+                <Route path="/submit" element={<SubmitPage />} />
+                <Route path="/dashboard" element={<h2>Dashboard</h2>} />
+                <Route path="/stats" element={<h2>Stats</h2>} />
+              </Routes>
+            </ErrorBoundary>
+          </div>
+        </main>
 
-      <footer
-        style={{
-          borderTop: '1px solid var(--border-color)',
-          padding: '1.5rem 0',
-          textAlign: 'center',
-          color: 'var(--text-muted)',
-          fontSize: '0.8125rem',
-        }}
-      >
-        <div className="container">CivicPulse &copy; {new Date().getFullYear()}</div>
-      </footer>
-    </div>
+        <footer
+          style={{
+            borderTop: '1px solid var(--border-color)',
+            padding: '1.5rem 0',
+            textAlign: 'center',
+            color: 'var(--text-muted)',
+            fontSize: '0.8125rem',
+          }}
+        >
+          <div className="container">CivicPulse &copy; {new Date().getFullYear()}</div>
+        </footer>
+      </div>
+    </BrowserRouter>
   );
 }
 
