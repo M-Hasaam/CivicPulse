@@ -6,3 +6,7 @@ Temporary documentation exercise summarizing existing project guidance. This dra
 
 Start with the [project README](../README.md) for the architecture diagram, stack, and setup instructions.
 
+## Evidence index
+
+The [evidence index](evidence/README.md) maps captured artifacts to the assignment requirements.
+
