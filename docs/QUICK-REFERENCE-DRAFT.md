@@ -70,3 +70,7 @@ Read the ADRs on the [provider interface](adr/0001-provider-interface.md), [fron
 
 The runbook distinguishes /health for liveness from /ready for PostgreSQL and Redis readiness. Consult it when diagnosing restarts or unavailable dependencies.
 
+## Triage incidents
+
+The runbook describes provider metadata, fallback metrics, warning logs, dependency readiness, and mitigation options for provider failures.
+
