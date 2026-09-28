@@ -34,3 +34,7 @@ For local model inference, select TRIAGE_PROVIDER=ollama and follow the Ollama s
 
 Use docker compose ps -a to inspect startup. Check service health and the exit codes of the migrate and seed jobs.
 
+## Local addresses
+
+With the documented Compose setup, open http://localhost for the app, http://localhost/docs for API documentation, and http://localhost/ready for readiness.
+
