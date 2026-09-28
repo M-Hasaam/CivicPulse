@@ -66,3 +66,7 @@ Follow the README Kubernetes quickstart to select a cluster, configure the local
 
 Read the ADRs on the [provider interface](adr/0001-provider-interface.md), [frontend configuration](adr/0002-frontend-runtime-config.md), [SHA deployment](adr/0003-deploy-by-sha.md), and [data governance](adr/0004-pii-and-data-governance.md).
 
+## Health and readiness
+
+The runbook distinguishes /health for liveness from /ready for PostgreSQL and Redis readiness. Consult it when diagnosing restarts or unavailable dependencies.
+
