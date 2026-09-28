@@ -364,6 +364,9 @@ jobs:
           kubectl get pods,events -n ingress-nginx -o wide || true
           kubectl describe pods -n ingress-nginx || true
           kubectl get pods,events -n argocd -o wide || true
+          kubectl describe pods -n argocd || true
+          kubectl logs -n argocd statefulset/argocd-application-controller --tail=300 || true
+          kubectl logs -n argocd deployment/argocd-repo-server --tail=300 || true
           kubectl get all,ingress,hpa -n civicpulse -o wide || true
           kubectl describe pods -n civicpulse || true
           kubectl logs -n civicpulse -l app.kubernetes.io/name=backend --tail=200 || true
