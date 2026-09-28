@@ -282,17 +282,24 @@ jobs:
             fi
             sleep 2
           done
+          # Real cause, finally visible in logs: "open /load/raw.jsonl:
+          # permission denied" - the k6 image runs as a non-root user that
+          # can't write into this bind mount (owned by the runner's user),
+          # so k6 aborted with zero requests made before handleSummary's
+          # own crash ("Cannot read property 'values' of undefined") ever
+          # ran. Fix is two-fold: drop --out json (raw.jsonl is never read
+          # anywhere, pure dead weight), and open up the mount so k6's
+          # summary.json write (via handleSummary, the file this pipeline
+          # actually depends on) succeeds too.
+          chmod -R 777 load
           # No --rm: it auto-deletes the container the instant it exits,
-          # which has twice now hidden why k6 exited well before its 90s
-          # duration ("No such container" with zero log output to explain
-          # it). Removed on purpose so a crash is inspectable instead of
-          # silently vanishing.
+          # which had hidden this error entirely until removed.
           docker run -d --name k6-zero-downtime --network host \
             -v "${{ github.workspace }}/load:/load" \
             -e BASE_URL=http://127.0.0.1:8080 \
             -e HOST_HEADER=civicpulse.localhost \
             -e K6_DURATION=90s \
-            grafana/k6:0.54.0 run /load/k6-zero-downtime.js --out json=/load/raw.jsonl
+            grafana/k6:0.54.0 run /load/k6-zero-downtime.js
 
       - name: Trigger a rolling restart mid-load
         run: |
