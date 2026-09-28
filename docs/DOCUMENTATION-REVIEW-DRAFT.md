@@ -14,3 +14,7 @@ Compare the README architecture diagram with its accompanying explanation of fro
 
 Check that readers can distinguish Docker Compose prerequisites from those required for manual development.
 
+## Environment setup
+
+Review the environment-copy instructions and confirm that example values are clearly distinguished from local credentials.
+
