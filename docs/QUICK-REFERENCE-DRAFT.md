@@ -10,3 +10,7 @@ Start with the [project README](../README.md) for the architecture diagram, stac
 
 The [evidence index](evidence/README.md) maps captured artifacts to the assignment requirements.
 
+## Operations
+
+Use the [runbook](RUNBOOK.md) for deployment, rollback, log inspection, and triage troubleshooting.
+
