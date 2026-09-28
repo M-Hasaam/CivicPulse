@@ -92,7 +92,7 @@ class TriageOrchestrator:
         with traced_span("triage.provider_call", provider=self.provider.name):
             try:
                 result = await self.provider.triage(text, location)
-            except Exception as exc:  # any provider failure - known or not - must not reach the user
+            except Exception as exc:  # any provider failure, known or not, must not reach the user
                 error_class = type(exc).__name__
                 TRIAGE_FALLBACKS.labels(provider=self.provider.name, error=error_class).inc()
                 result = await self.fallback.triage(text, location)

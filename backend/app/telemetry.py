@@ -28,7 +28,7 @@ logger = logging.getLogger("civicpulse")
 _configured = False
 
 
-def configure_telemetry(app: "FastAPI", service_name: str, otlp_endpoint: str | None) -> None:
+def configure_telemetry(app: FastAPI, service_name: str, otlp_endpoint: str | None) -> None:
     """Wire up tracing once per process. Safe to call more than once."""
     global _configured
     if _configured:

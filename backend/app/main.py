@@ -50,7 +50,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="CivicPulse API", lifespan=lifespan)
-configure_telemetry(app, service_name="civicpulse-backend", otlp_endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT)
+configure_telemetry(
+    app, service_name="civicpulse-backend", otlp_endpoint=settings.OTEL_EXPORTER_OTLP_ENDPOINT
+)
 
 
 @app.middleware("http")
