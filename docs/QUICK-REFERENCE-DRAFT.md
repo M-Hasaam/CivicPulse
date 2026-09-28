@@ -46,3 +46,7 @@ Use docker compose logs -f backend to follow backend events. The runbook explain
 
 The README distinguishes docker compose down, which retains volumes, from docker compose down -v, which deletes them.
 
+## Manual development
+
+The manual setup in the README uses Python 3.12 and Node.js 22, with PostgreSQL and Redis running in containers.
+
