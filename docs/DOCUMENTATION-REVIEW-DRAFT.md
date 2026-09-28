@@ -66,3 +66,7 @@ Review the runbook examples for accessing logs and tracing requests by request i
 
 Check that the runbook connects provider metadata, fallback metrics, warning logs, and dependency readiness to diagnosis.
 
+## Evidence navigation
+
+Review the [evidence index](evidence/README.md) for clear artifact links and explicit status descriptions.
+
