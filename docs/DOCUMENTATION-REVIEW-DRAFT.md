@@ -22,3 +22,7 @@ Review the environment-copy instructions and confirm that example values are cle
 
 Check that the rules and Ollama startup paths are easy to follow independently in the README.
 
+## First startup
+
+Review the description of migration and seed jobs so readers know how one-shot jobs differ from running services.
+
