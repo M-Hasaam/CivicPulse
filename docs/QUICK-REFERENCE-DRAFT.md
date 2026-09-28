@@ -26,3 +26,7 @@ Copy .env.example to .env before starting the stack. Keep local credentials out 
 
 The default TRIAGE_PROVIDER=rules requires no API key or model download. Follow the rules-specific Compose command in the README.
 
+## Ollama provider
+
+For local model inference, select TRIAGE_PROVIDER=ollama and follow the Ollama startup instructions. The initial run downloads the configured model.
+
