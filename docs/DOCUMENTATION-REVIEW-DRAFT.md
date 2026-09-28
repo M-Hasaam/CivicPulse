@@ -10,3 +10,7 @@ Review the [README](../README.md) introduction for a clear explanation of compla
 
 Compare the README architecture diagram with its accompanying explanation of frontend, backend, and data services.
 
+## Prerequisites
+
+Check that readers can distinguish Docker Compose prerequisites from those required for manual development.
+
