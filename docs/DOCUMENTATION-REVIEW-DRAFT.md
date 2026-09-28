@@ -50,3 +50,7 @@ Review the Kubernetes quickstart for cluster selection, secrets configuration, a
 
 Check that the Kubernetes instructions explain waiting for migration completion and application rollouts.
 
+## Operations navigation
+
+Confirm that the [runbook](RUNBOOK.md) is easy to find from the main README when a reader needs operational procedures.
+
