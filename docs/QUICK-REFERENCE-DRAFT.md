@@ -38,3 +38,7 @@ Use docker compose ps -a to inspect startup. Check service health and the exit c
 
 With the documented Compose setup, open http://localhost for the app, http://localhost/docs for API documentation, and http://localhost/ready for readiness.
 
+## Compose logs
+
+Use docker compose logs -f backend to follow backend events. The runbook explains the JSON fields and request identifiers.
+
