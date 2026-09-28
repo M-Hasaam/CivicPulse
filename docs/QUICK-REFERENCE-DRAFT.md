@@ -18,3 +18,7 @@ Use the [runbook](RUNBOOK.md) for deployment, rollback, log inspection, and tria
 
 The README recommends Docker Desktop for the Compose quickstart. Run the setup commands from the repository root.
 
+## Local environment
+
+Copy .env.example to .env before starting the stack. Keep local credentials out of Git and use placeholders in examples.
+
