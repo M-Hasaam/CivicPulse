@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [quality-gate, manifests]
     permissions:
-      contents: write  # pushes the deploy/prod branch for the GitOps step
+      contents: read
       packages: write
       id-token: write  # keyless cosign signing (Sigstore OIDC) - no key material
     env:
@@ -158,41 +158,6 @@ jobs:
             --for=condition=available deployment/metrics-server \
             --timeout=120s
 
-      - name: Install Argo CD
-        run: |
-          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.13.2/manifests/install.yaml
-          # This runner's kind node has ~2 vCPU total, shared across the whole
-          # app stack (backend/frontend/postgres/redis/prometheus/grafana) plus
-          # Argo CD - a full default install was starving postgres of enough
-          # CPU request headroom to even get scheduled. We only ever query the
-          # Application CRD via kubectl, never the UI/API/SSO/notifications, so
-          # scale those components to zero rather than wait for pods we never use.
-          kubectl -n argocd scale deployment argocd-server argocd-dex-server \
-            argocd-notifications-controller argocd-applicationset-controller \
-            --replicas=0
-          kubectl wait --namespace argocd \
-            --for=condition=available deployment/argocd-repo-server deployment/argocd-redis \
-            --timeout=300s
-          kubectl rollout status statefulset/argocd-application-controller -n argocd --timeout=300s
-
-      # This repository is private, so the Application's git source needs
-      # credentials or the repo-server fails with "authentication required" -
-      # GITHUB_TOKEN over HTTPS, the same pattern GitHub itself recommends
-      # for git operations from a workflow (username is a placeholder value;
-      # only the token is checked).
-      - name: Configure Argo CD repository credentials
-        run: |
-          kubectl create secret generic civicpulse-repo \
-            --namespace argocd \
-            --from-literal=type=git \
-            --from-literal=url=https://github.com/${{ github.repository }}.git \
-            --from-literal=username=x-access-token \
-            --from-literal=password='${{ secrets.GITHUB_TOKEN }}' \
-            --dry-run=client -o yaml \
-            | kubectl label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
-            | kubectl apply -f -
-
       - name: Configure GHCR pull secret
         run: |
           kubectl create namespace civicpulse --dry-run=client -o yaml | kubectl apply -f -
@@ -203,81 +168,46 @@ jobs:
             --docker-password='${{ secrets.GITHUB_TOKEN }}' \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      # NOTE: this identity only matches a real `push` to `main` (this workflow's
-      # only non-manual trigger). A `workflow_dispatch` test run from a feature
-      # branch has a different certificate identity (refs/heads/<branch>) and
-      # will fail this check - by design, since this is the gate that decides
-      # what's allowed to reach the cluster. To test signing/verification from a
-      # branch, temporarily widen the regexp below to `refs/heads/.*` locally,
-      # then revert before merging - never loosen it in a commit that lands on main.
+      - name: Prepare prod secrets file (CI/kind placeholder only, never real credentials)
+        run: |
+          cat > k8s/overlays/prod/secrets.env <<EOF
+          POSTGRES_PASSWORD=$(openssl rand -hex 24)
+          GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 24)
+          EOF
+
       - name: Verify image signatures before deploying
         run: |
           cosign verify \
-            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.github/workflows/cd.yml@refs/heads/.*$" \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.github/workflows/cd.yml@refs/heads/main$" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             "${{ steps.meta.outputs.backend }}@${{ steps.build-backend.outputs.digest }}"
           cosign verify \
-            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.github/workflows/cd.yml@refs/heads/.*$" \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.github/workflows/cd.yml@refs/heads/main$" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             "${{ steps.meta.outputs.frontend }}@${{ steps.build-frontend.outputs.digest }}"
 
-      # GitOps: instead of applying manifests directly, commit the new image
-      # digests to a dedicated deploy/prod branch (bot-authored only, never
-      # main - so this can't retrigger this workflow) and let Argo CD
-      # reconcile the cluster from that branch.
-      #
-      # Edits k8s/base, not k8s/overlays/prod: the prod overlay's
-      # secretGenerator merges in a local secrets.env file that only ever
-      # exists in this runner's own checkout (see "Configure GHCR pull
-      # secret" below and secrets.env.example) - it's gitignored, so Argo
-      # CD's repo-server, which clones fresh from git, has no such file and
-      # kustomize build fails outright before rendering anything. Base's
-      # secretGenerator has no external file dependency, so it builds
-      # cleanly from a bare clone; the ephemeral CI cluster this validates
-      # against runs on base's placeholder credentials, same posture as
-      # this job's other CI-only secrets (never real credentials).
-      - name: Update deploy/prod with the new image references
+      - name: Deploy digest-pinned images
         run: |
           BACKEND_DIGEST="${{ steps.meta.outputs.backend }}@${{ steps.build-backend.outputs.digest }}"
           FRONTEND_DIGEST="${{ steps.meta.outputs.frontend }}@${{ steps.build-frontend.outputs.digest }}"
           echo "backend digest: $BACKEND_DIGEST"
           echo "frontend digest: $FRONTEND_DIGEST"
-          git config user.name "civicpulse-cd-bot"
-          git config user.email "cd-bot@users.noreply.github.com"
-          git fetch origin deploy/prod || true
-          if git show-ref --verify --quiet refs/remotes/origin/deploy/prod; then
-            git checkout -B deploy/prod origin/deploy/prod
-          else
-            git checkout -B deploy/prod
-          fi
-          git checkout "${{ steps.meta.outputs.sha }}" -- k8s
-          cd k8s/base
-          kustomize edit set image \
-            "${{ steps.meta.outputs.backend }}=${BACKEND_DIGEST}" \
-            "${{ steps.meta.outputs.frontend }}=${FRONTEND_DIGEST}"
-          cd -
-          git add k8s
-          git commit -m "deploy: backend ${{ steps.build-backend.outputs.digest }}, frontend ${{ steps.build-frontend.outputs.digest }}" --allow-empty
-          git push origin deploy/prod
-
-      - name: Deploy the Argo CD Application
-        run: |
-          kubectl apply -f k8s/argocd/application.yaml
-          # 60 x 10s: postgres ready -> migrate Job -> backend/frontend rollout
-          # -> HPA reading metrics-server is a real sequential chain, not a
-          # single wait - give it more room than a single-resource wait needs.
-          for i in $(seq 1 60); do
-            health=$(kubectl get application civicpulse -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
-            sync=$(kubectl get application civicpulse -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "")
-            echo "health=$health sync=$sync ($i/60)"
-            if [ "$health" = "Healthy" ] && [ "$sync" = "Synced" ]; then
-              break
-            fi
-            sleep 10
-          done
-          kubectl get application civicpulse -n argocd -o yaml
-          test "$(kubectl get application civicpulse -n argocd -o jsonpath='{.status.health.status}')" = "Healthy"
-          test "$(kubectl get application civicpulse -n argocd -o jsonpath='{.status.sync.status}')" = "Synced"
+          kubectl kustomize k8s/overlays/prod > rendered-prod.yaml
+          kubectl set image --local -f rendered-prod.yaml \
+            backend="$BACKEND_DIGEST" \
+            migrate="$BACKEND_DIGEST" \
+            frontend="$FRONTEND_DIGEST" \
+            -o yaml > rendered-prod-sha.yaml
+          # A Job's pod template is immutable once created, so re-applying "migrate"
+          # with a new image on top of a prior release's completed Job would fail
+          # outright instead of deploying. Delete it first - every release gets a
+          # fresh run. --ignore-not-found covers both "no prior Job" and "no
+          # namespace yet" (first-ever deploy).
+          kubectl delete job/migrate -n civicpulse --ignore-not-found --wait=true
+          kubectl apply -f rendered-prod-sha.yaml
+          kubectl wait --for=condition=complete job/migrate -n civicpulse --timeout=180s
+          kubectl rollout status deployment/backend -n civicpulse --timeout=180s
+          kubectl rollout status deployment/frontend -n civicpulse --timeout=180s
 
       - name: Smoke test the kind ingress
         run: |
@@ -362,11 +292,6 @@ jobs:
           df -h / || true
           docker system df || true
           kubectl get pods,events -n ingress-nginx -o wide || true
-          kubectl describe pods -n ingress-nginx || true
-          kubectl get pods,events -n argocd -o wide || true
-          kubectl describe pods -n argocd || true
-          kubectl logs -n argocd statefulset/argocd-application-controller --tail=300 || true
-          kubectl logs -n argocd deployment/argocd-repo-server --tail=300 || true
           kubectl get all,ingress,hpa -n civicpulse -o wide || true
           kubectl describe pods -n civicpulse || true
           kubectl logs -n civicpulse -l app.kubernetes.io/name=backend --tail=200 || true

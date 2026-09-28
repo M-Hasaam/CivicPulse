@@ -55,7 +55,7 @@ are easy to find separately from the core-rubric evidence above.
 | OpenTelemetry tracing across frontend → backend → LLM call | +2 | `bonus-otel-jaeger-trace-search-frontend.png` (Jaeger search results: `civicpulse-frontend` service, two `POST` traces each spanning `civicpulse-backend (25)` + `civicpulse-frontend (1)` — 26 spans total) | 🟡 Proves the trace exists and crosses both services — still missing a screenshot of one trace **opened** (the expanded span waterfall), which is the clearer picture for this rubric line. See regeneration steps below. |
 | Zero-downtime rolling update demonstrated under live load with zero failed requests | +4 | — | 🔴 Not started — only produced by a real `cd.yml` run (needs a pushed branch + triggered workflow, not reproducible locally) |
 | Deploy by image digest rather than tag, with Cosign signing and verification in CI | +3 | — | 🔴 Not started — same as above, only produced by a real `cd.yml` run |
-| GitOps: Argo CD reconciling the cluster from the repository | +4 | — | 🔴 Not started — same as above, only produced by a real `cd.yml` run |
+| GitOps: Argo CD reconciling the cluster from the repository | +4 | — | ⚫ Not attempted — implemented and tested across ~10 iterations (private-repo auth, kustomize rendering from a bare git clone, a PreSync hook deadlock, then a CPU-starved single-node runner killing Argo CD's own redis secret generation); dropped in favour of the direct-deploy path so the other four bonus items stay reliably green rather than blocked on a flaky fifth. See the commit history on this branch for the full diagnosis if revisiting. |
 
 ### How to (re)generate the bonus evidence
 
@@ -72,13 +72,12 @@ are easy to find separately from the core-rubric evidence above.
 3. Service dropdown → `civicpulse-frontend` (only appears after step 1) → Operation → `POST /api/complaints` → **Find Traces**
 4. **Still needed:** click into one of the resulting traces (not just the search list) to open its span waterfall, and screenshot that — it should show the frontend fetch span, nested under it the backend's FastAPI span, and nested under that a `triage.provider_call` span with an `httpx` child span (the real Groq call). Save as `bonus-otel-jaeger-trace-waterfall.png`.
 
-**Zero-downtime / digest+Cosign / GitOps** — none of these can be produced locally; they only happen inside a real `cd.yml` run in GitHub Actions (a live kind cluster, GitHub's OIDC token for signing, Argo CD reconciling a live cluster). Once the branch is pushed and the workflow triggered:
+**Zero-downtime / digest+Cosign** — neither can be produced locally; they only happen inside a real `cd.yml` run in GitHub Actions (a live kind cluster, GitHub's OIDC token for signing). Once the branch is pushed and the workflow triggered:
 - Zero-downtime: the workflow itself asserts `http_req_failed == 0` and uploads `zero-downtime-evidence` as a workflow artifact (`zero-downtime-1-k6-summary.json`, `zero-downtime-2-rollout-log.txt`) — download that artifact and drop both files in here.
 - Digest + Cosign: screenshot the `Verify image signatures before deploying` step's log (showing both `cosign verify` calls succeeding), or run `cosign verify --certificate-identity-regexp ".*" --certificate-oidc-issuer https://token.actions.githubusercontent.com ghcr.io/m-hasaam/civicpulse/backend@<digest-from-the-log>` yourself and save its JSON output as `bonus-cosign-verify.txt`.
-- GitOps: the `Deploy the Argo CD Application` step already prints `kubectl get application civicpulse -n argocd -o yaml` — copy that step's output (showing `sync.status: Synced` and `health.status: Healthy`) into `bonus-gitops-argocd-app-synced.txt`.
 
 ## Legend
-✅ complete · 🟡 partial · ⚪ verified but intentionally not a screenshot (belongs in the video) · 🔴 not started
+✅ complete · 🟡 partial · ⚪ verified but intentionally not a screenshot (belongs in the video) · 🔴 not started · ⚫ attempted and deliberately dropped (see the note on that row)
 
 ## Adding new evidence
 Each item gets its own small branch + Issue + PR into `dev`, same as everything else in this repo — see `COMMIT-PLAN.md` (on the `team-plan` branch) for the workflow. Update this file's table in the same PR that adds the screenshot.

@@ -3,18 +3,6 @@ kind: Job
 metadata:
   name: migrate
   namespace: civicpulse
-  annotations:
-    # Argo CD force-replaces (delete+recreate) this Job on every sync instead
-    # of a plain apply, working around the Job pod template's immutable
-    # fields - the imperative `kubectl delete job/migrate` step cd.yml
-    # otherwise needs. Deliberately NOT a PreSync hook: a hook runs before
-    # the main sync wave, but this Job's initContainer waits for postgres,
-    # which is only created *during* the main sync - a hook would deadlock
-    # every fresh deploy. Replace=true keeps it in the normal sync wave
-    # alongside postgres, so the existing wait-and-retry logic still works.
-    # A plain `kubectl apply -k` (manual/local deploys) ignores this
-    # annotation harmlessly and still needs the manual delete.
-    argocd.argoproj.io/sync-options: Replace=true
 spec:
   backoffLimit: 3
   template:
