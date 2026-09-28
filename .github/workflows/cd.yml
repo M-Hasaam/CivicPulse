@@ -93,6 +93,7 @@ jobs:
         uses: helm/kind-action@v1.12.0
         with:
           cluster_name: civicpulse-cd
+          config: .github/kind-config.yaml
 
       - name: Install nginx ingress for kind
         run: |
@@ -177,6 +178,11 @@ jobs:
       - name: Show cluster state on failure
         if: failure()
         run: |
+          kubectl get nodes --show-labels || true
+          kubectl get pods,jobs -n ingress-nginx -o wide || true
+          kubectl describe pods -n ingress-nginx || true
+          kubectl get events -n ingress-nginx --sort-by=.metadata.creationTimestamp || true
+          kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller --tail=200 || true
           kubectl get all,ingress,hpa -n civicpulse -o wide || true
           kubectl describe pods -n civicpulse || true
           kubectl logs -n civicpulse -l app.kubernetes.io/name=backend --tail=200 || true
