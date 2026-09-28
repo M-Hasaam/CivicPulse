@@ -30,3 +30,7 @@ Review the description of migration and seed jobs so readers know how one-shot j
 
 Check that the README distinguishes the app address, API documentation address, and readiness endpoint.
 
+## Shutdown commands
+
+Review the explanation of volume retention and deletion alongside the Compose shutdown commands.
+
