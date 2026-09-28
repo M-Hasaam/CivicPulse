@@ -108,7 +108,7 @@ Kept honest on purpose: an empty or 🔴 row here is a to-do, not an oversight t
 | `README.md`: problem statement, badges, Mermaid architecture diagram, working one-command quickstart, API table, screenshots | 4 | [../../README.md](../../README.md)<br>[readme-frontend-ui.png](readme-frontend-ui.png), [compose-stack-healthy.png](compose-stack-healthy.png), [compose-api-stats-200.png](compose-api-stats-200.png), [compose-api-complaints-200.png](compose-api-complaints-200.png), [localhost_dashboard.png](localhost_dashboard.png), [localhost_stats.png](localhost_stats.png) | ✅ Complete |
 | Four ADRs: provider interface; frontend runtime config; deploy-by-SHA; PII/data governance | 4 | [../adr/0001-provider-interface.md](../adr/0001-provider-interface.md)<br>[../adr/0002-frontend-runtime-config.md](../adr/0002-frontend-runtime-config.md)<br>[../adr/0003-deploy-by-sha.md](../adr/0003-deploy-by-sha.md)<br>[../adr/0004-pii-and-data-governance.md](../adr/0004-pii-and-data-governance.md) | ✅ Complete |
 | `docs/RUNBOOK.md`: how to deploy, roll back, read logs, and what to do when triage starts failing | 2 | [../RUNBOOK.md](../RUNBOOK.md) | ✅ Complete |
-| Demo video ≤ 5 minutes, both partners speaking, covering clean clone → running system, AI triage, fallback, network isolation failing, HPA scaling, rollback | 3 | — | 🔴 Not started — the last thing to record, once everything above is green |
+| Demo video ≤ 5 minutes, both partners speaking, covering clean clone → running system, AI triage, fallback, network isolation failing, HPA scaling, rollback | 3 | Supporting material: [compose-stack-healthy.png](compose-stack-healthy.png) (running stack)<br>[compose-frontend-cannot-reach-postgres.png](compose-frontend-cannot-reach-postgres.png) (network isolation)<br>[hpa-1-replicas-vs-load-chart.png](hpa-1-replicas-vs-load-chart.png), [hpa-2-kubectl-get-hpa-watch-output.txt](hpa-2-kubectl-get-hpa-watch-output.txt) (HPA scaling) | 🟡 Partial — supporting screenshots/logs captured for some demo topics; the ≤ 5-minute video with both partners speaking and all required demonstrations is still outstanding. Screenshots do not replace the video requirement. |
 | `docs/ENGINEERING-NOTES.md` answering all eight questions in §5.2 with file-and-line references | 2 | [../ENGINEERING-NOTES.md](../ENGINEERING-NOTES.md) | ✅ Complete |
 
 ## Bonus — capped at +15
@@ -128,7 +128,7 @@ completion of the full bonus requirement; the missing demonstrations are stated 
 ✅ complete · 🟡 partial (some evidence exists; gaps are stated in the row) · 🔴 not started / not evidenced in this branch
 
 ## Still open
-- **Demo video** (J, 3 marks) — needs both partners recording/narrating; nothing to link here yet.
+- **Demo video** (J, 3 marks) — supporting screenshots/logs are linked above; record and link a ≤ 5-minute video with both partners speaking, covering every required demo topic.
 - **Bonus evidence** (up to +15) — see the bonus table for existing files and the missing implementation or captures; no full bonus item is marked complete yet.
 
 ## Adding new evidence
