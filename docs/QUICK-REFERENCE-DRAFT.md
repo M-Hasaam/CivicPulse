@@ -42,3 +42,7 @@ With the documented Compose setup, open http://localhost for the app, http://loc
 
 Use docker compose logs -f backend to follow backend events. The runbook explains the JSON fields and request identifiers.
 
+## Stopping Compose
+
+The README distinguishes docker compose down, which retains volumes, from docker compose down -v, which deletes them.
+
