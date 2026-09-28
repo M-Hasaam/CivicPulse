@@ -42,3 +42,7 @@ Check the manual backend setup sequence for installation, migrations, seed data,
 
 Review the frontend setup instructions for their working directory, dependency installation, and development URL.
 
+## Cluster setup
+
+Review the Kubernetes quickstart for cluster selection, secrets configuration, and overlay application.
+
