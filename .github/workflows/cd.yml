@@ -93,6 +93,7 @@ jobs:
         uses: helm/kind-action@v1.12.0
         with:
           cluster_name: civicpulse-cd
+          config: .github/kind-config.yaml
 
       - name: Install nginx ingress for kind
         run: |
@@ -129,12 +130,32 @@ jobs:
 
       - name: Deploy SHA-tagged images
         run: |
-          kubectl kustomize k8s/overlays/prod > rendered-prod.yaml
-          kubectl set image --local -f rendered-prod.yaml \
-            backend=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
-            migrate=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
-            frontend=${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.sha }} \
-            -o yaml > rendered-prod-sha.yaml
+          # Replace image references in workloads without modifying other resources.
+          mkdir -p .cd-render
+          cat > .cd-render/kustomization.yaml <<EOF
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          resources:
+            - ../k8s/overlays/prod
+          # The small CI node also hosts the control plane and ingress.
+          # Keep both replicas; reserve less CPU only in this ephemeral cluster.
+          patches:
+            - target:
+                kind: Deployment
+                name: backend
+              patch: |-
+                - op: replace
+                  path: /spec/template/spec/containers/0/resources/requests/cpu
+                  value: 200m
+          images:
+            - name: ghcr.io/m-hasaam/civicpulse/backend
+              newName: ${{ steps.meta.outputs.backend }}
+              newTag: "${{ steps.meta.outputs.sha }}"
+            - name: ghcr.io/m-hasaam/civicpulse/frontend
+              newName: ${{ steps.meta.outputs.frontend }}
+              newTag: "${{ steps.meta.outputs.sha }}"
+          EOF
+          kubectl kustomize .cd-render > rendered-prod-sha.yaml
           # A Job's pod template is immutable once created, so re-applying "migrate"
           # with a new image on top of a prior release's completed Job would fail
           # outright instead of deploying. Delete it first - every release gets a
@@ -177,6 +198,11 @@ jobs:
       - name: Show cluster state on failure
         if: failure()
         run: |
+          kubectl get nodes --show-labels || true
+          kubectl get pods,jobs -n ingress-nginx -o wide || true
+          kubectl describe pods -n ingress-nginx || true
+          kubectl get events -n ingress-nginx --sort-by=.metadata.creationTimestamp || true
+          kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller --tail=200 || true
           kubectl get all,ingress,hpa -n civicpulse -o wide || true
           kubectl describe pods -n civicpulse || true
           kubectl logs -n civicpulse -l app.kubernetes.io/name=backend --tail=200 || true
