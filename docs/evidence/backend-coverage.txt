@@ -1,0 +1,60 @@
+Command: pytest --cov=app --cov-report=term-missing
+Date: 2026-09-28
+Gate: [tool.coverage.report] fail_under = 65 (backend/pyproject.toml), enforced by the
+existing `pytest --cov=app` step in .github/workflows/ci.yml — no CLI flag needed,
+pytest-cov reads fail_under from the coverage config automatically.
+
+........................................................................ [ 50%]
+........................................................................ [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\CODE\Assignments\SCD-A01-evidence\backend\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================== tests coverage ================================
+______________ coverage: platform win32, python 3.12.10-final-0 _______________
+
+Name                                 Stmts   Miss  Cover   Missing
+------------------------------------------------------------------
+app\__init__.py                          0      0   100%
+app\cache\__init__.py                    0      0   100%
+app\cache\client.py                     18      2    89%   38, 43
+app\cache\rate_limiter.py               36      0   100%
+app\cache\stats_cache.py                45      2    96%   68-69
+app\cache\triage_cache.py               34      0   100%
+app\cache\triage_log.py                 36     10    72%   26-27, 33-35, 41-42, 48-50
+app\config.py                           23      0   100%
+app\dependencies.py                     17      3    82%   20, 24-25
+app\domain.py                           17      0   100%
+app\logging_config.py                   42      0   100%
+app\main.py                             73      1    99%   105
+app\metrics.py                           6      0   100%
+app\providers\__init__.py                0      0   100%
+app\providers\triage\__init__.py         0      0   100%
+app\providers\triage\base.py            28      0   100%
+app\providers\triage\factory.py         17      0   100%
+app\providers\triage\http.py            45      1    98%   55
+app\providers\triage\llm.py             30      2    93%   89-90
+app\providers\triage\ollama.py          21      2    90%   53-54
+app\providers\triage\rules.py           28      0   100%
+app\providers\triage\simulated.py       23      0   100%
+app\repositories\__init__.py             0      0   100%
+app\repositories\complaint_repo.py      64     29    55%   41-45, 48, 82-85, 95-114, 117-120, 123-126, 129-131
+app\repositories\database.py            12      4    67%   19-20, 25-26
+app\repositories\models.py              23      0   100%
+app\routes\__init__.py                   0      0   100%
+app\routes\complaints.py                22      0   100%
+app\routes\errors.py                    23      0   100%
+app\routes\health.py                    27      0   100%
+app\routes\stats.py                     12      0   100%
+app\schemas.py                          69      0   100%
+app\seed.py                             21     21     0%   7-396
+app\services\__init__.py                 0      0   100%
+app\services\complaint_service.py       49      0   100%
+app\services\state_machine.py           13      0   100%
+app\services\triage_service.py          59      2    97%   84-85
+------------------------------------------------------------------
+TOTAL                                  933     79    92%
+Required test coverage of 65.0% reached. Total coverage: 91.53%
+144 passed, 1 warning in 3.48s

@@ -72,6 +72,47 @@ jobs:
           assert data['total_complaints'] >= 1, data
           PY
 
+      - name: SIGTERM drains an in-flight request (real container, real signal)
+        run: |
+          BACKEND_CID=$(docker compose --env-file .env.example ps -q backend)
+          test -n "$BACKEND_CID"
+
+          curl --silent --max-time 25 -o created.json -w '%{http_code}' -X POST http://localhost/api/complaints \
+            -H 'Content-Type: application/json' \
+            --data '{"text":"Water main burst is flooding the intersection, cars are stalling.","location":"F-8 Markaz","reporter_contact":"sigterm-test@example.com"}' \
+            > status.txt &
+          REQUEST_PID=$!
+
+          # No artificial delay: the container-kill roundtrip (Compose CLI -> Docker
+          # daemon -> container PID 1) already takes long enough that curl's request
+          # has been accepted by the time SIGTERM lands - this is what actually proves
+          # "in-flight requests drain", not a contrived sleep in application code.
+          docker compose --env-file .env.example kill -s SIGTERM backend
+
+          wait "$REQUEST_PID"
+          STATUS=$(cat status.txt)
+          echo "in-flight request finished with status $STATUS"
+          test "$STATUS" = "201"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('created.json').read_text())
+          assert data['id'], data
+          assert data['status'] == 'open', data
+          PY
+
+          for i in $(seq 1 25); do
+            RUNNING=$(docker inspect -f '{{.State.Running}}' "$BACKEND_CID" 2>/dev/null || echo false)
+            if [ "$RUNNING" = "false" ]; then
+              echo "backend container exited ${i}s after SIGTERM"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend container did not exit within 25s of SIGTERM (--timeout-graceful-shutdown is 20s)"
+          docker compose --env-file .env.example logs backend
+          exit 1
+
       - name: Show Compose state on failure
         if: failure()
         run: docker compose --env-file .env.example ps && docker compose --env-file .env.example logs
