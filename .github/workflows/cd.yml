@@ -211,6 +211,15 @@ jobs:
           # namespace yet" (first-ever deploy).
           kubectl delete job/migrate -n civicpulse --ignore-not-found --wait=true
           kubectl apply -f rendered-prod-sha.yaml
+          # backend alone (2 replicas x 550m, the VPA-tuned value - not something
+          # to shrink for CI's sake) already uses over half this runner's ~2 vCPU
+          # budget; Prometheus/Grafana's CPU requests on top were leaving postgres
+          # unable to schedule at all ("Insufficient cpu"), with or without Argo CD
+          # in the picture. Both stay fully deployed in k8s/base for anyone with a
+          # real cluster's worth of CPU - just not run in this resource-starved
+          # ephemeral validation cluster. Scaling to zero frees their reserved
+          # capacity immediately, unlike waiting for them to fail on their own.
+          kubectl scale deployment prometheus grafana -n civicpulse --replicas=0
           kubectl wait --for=condition=complete job/migrate -n civicpulse --timeout=180s
           kubectl rollout status deployment/backend -n civicpulse --timeout=180s
           kubectl rollout status deployment/frontend -n civicpulse --timeout=180s
