@@ -204,6 +204,16 @@ jobs:
             "${{ steps.meta.outputs.backend }}=${BACKEND_DIGEST}" \
             "${{ steps.meta.outputs.frontend }}=${FRONTEND_DIGEST}")
           kubectl kustomize k8s/overlays/prod > rendered-prod-sha.yaml
+          # backend's 550m/1000m (the real VPA-tuned production values, left
+          # untouched in the committed manifest) is over half this ~2 vCPU
+          # runner's entire budget per replica. Patching a *running*
+          # Deployment after apply created two ReplicaSets racing for the
+          # same scarce CPU (old 550m pods still Pending, new 100m pods
+          # also failing to schedule alongside them) - strictly worse than
+          # either alone. Rewriting the rendered manifest before it's ever
+          # applied means only one ReplicaSet, at the lower request, ever
+          # exists in this ephemeral CI cluster.
+          sed -i 's/cpu: 550m/cpu: 100m/; s/cpu: 1000m/cpu: 500m/' rendered-prod-sha.yaml
           # A Job's pod template is immutable once created, so re-applying "migrate"
           # with a new image on top of a prior release's completed Job would fail
           # outright instead of deploying. Delete it first - every release gets a
@@ -211,31 +221,16 @@ jobs:
           # namespace yet" (first-ever deploy).
           kubectl delete job/migrate -n civicpulse --ignore-not-found --wait=true
           kubectl apply -f rendered-prod-sha.yaml
-          # backend alone (2 replicas x 550m, the VPA-tuned value - not something
-          # to shrink for CI's sake) already uses over half this runner's ~2 vCPU
-          # budget; Prometheus/Grafana's CPU requests on top were leaving postgres
-          # unable to schedule at all ("Insufficient cpu"), with or without Argo CD
-          # in the picture. Both stay fully deployed in k8s/base for anyone with a
-          # real cluster's worth of CPU - just not run in this resource-starved
-          # ephemeral validation cluster. Scaling to zero frees their reserved
-          # capacity immediately, unlike waiting for them to fail on their own.
+          # backend alone (2 replicas) already uses over half this runner's ~2
+          # vCPU budget; Prometheus/Grafana's CPU requests on top were leaving
+          # postgres unable to schedule at all ("Insufficient cpu"), with or
+          # without Argo CD in the picture. Both stay fully deployed in
+          # k8s/base for anyone with a real cluster's worth of CPU - just not
+          # run in this resource-starved ephemeral validation cluster. Scaling
+          # to zero frees their reserved capacity immediately, unlike waiting
+          # for them to fail on their own.
           kubectl scale deployment prometheus grafana -n civicpulse --replicas=0
           kubectl wait --for=condition=complete job/migrate -n civicpulse --timeout=180s
-          # Confirmed across multiple runs, not a timing margin: 2 backend
-          # replicas at 550m each (the VPA-tuned value for real production
-          # load) leave no CPU headroom for a 3rd pod during a rolling
-          # restart's surge - "Insufficient cpu" every time. That request is
-          # right for production; it is not what a free CI runner's ~2 vCPU
-          # budget can spare just to prove the rollout mechanism works under
-          # a light k6 smoke load. Lower it for this job only - the committed
-          # manifest keeps the real 550m for anyone deploying for real.
-          # strategic (not merge/JSON-merge): a JSON merge patch replaces the
-          # whole containers array wholesale, which would wipe out this
-          # container's image/command/env/probes since only "resources" is
-          # given here. Strategic merge patches list items by their "name"
-          # key, changing only the field specified.
-          kubectl patch deployment backend -n civicpulse --type strategic \
-            -p '{"spec":{"template":{"spec":{"containers":[{"name":"backend","resources":{"requests":{"cpu":"100m"},"limits":{"cpu":"500m"}}}]}}}}'
           kubectl rollout status deployment/backend -n civicpulse --timeout=180s
           kubectl rollout status deployment/frontend -n civicpulse --timeout=180s
 
