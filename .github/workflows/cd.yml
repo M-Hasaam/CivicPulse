@@ -130,12 +130,22 @@ jobs:
 
       - name: Deploy SHA-tagged images
         run: |
-          kubectl kustomize k8s/overlays/prod > rendered-prod.yaml
-          kubectl set image --local -f rendered-prod.yaml \
-            backend=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
-            migrate=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
-            frontend=${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.sha }} \
-            -o yaml > rendered-prod-sha.yaml
+          # Replace image references in workloads without modifying other resources.
+          mkdir -p .cd-render
+          cat > .cd-render/kustomization.yaml <<EOF
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          resources:
+            - ../k8s/overlays/prod
+          images:
+            - name: ghcr.io/m-hasaam/civicpulse/backend
+              newName: ${{ steps.meta.outputs.backend }}
+              newTag: "${{ steps.meta.outputs.sha }}"
+            - name: ghcr.io/m-hasaam/civicpulse/frontend
+              newName: ${{ steps.meta.outputs.frontend }}
+              newTag: "${{ steps.meta.outputs.sha }}"
+          EOF
+          kubectl kustomize .cd-render > rendered-prod-sha.yaml
           # A Job's pod template is immutable once created, so re-applying "migrate"
           # with a new image on top of a prior release's completed Job would fail
           # outright instead of deploying. Delete it first - every release gets a
