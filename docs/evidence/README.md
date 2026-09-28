@@ -16,20 +16,20 @@ Kept honest on purpose: an empty row here is a to-do, not an oversight to hide.
 | --- | --- | --- | --- |
 | Full Compose stack runs from one command | (supports Docker/Compose demo and README proof) | `compose-stack-healthy.png` (`frontend`, `backend`, `postgres`, `redis`, `ollama` healthy; `migrate`, `seed`, `ollama-pull` exited 0)<br>`compose-api-stats-200.png` (`GET /api/stats` through the frontend proxy returns 200)<br>`compose-api-complaints-200.png` (`GET /api/complaints` returns seeded data)<br>`compose-api-create-complaint-201.png` (`POST /api/complaints` creates a row through the Compose stack)<br>`compose-ollama-model-list.png` (`llama3.2:1b` loaded in Ollama) | ✅ Screenshot evidence captured; still include the live run in the final demo video |
 | Frontend provably cannot reach the database | 4 | `compose-frontend-cannot-reach-postgres.png` (`docker compose exec frontend wget -T 3 -O- http://postgres:5432` fails with `bad address`)<br>Also verified live earlier via `docker run --network civicpulse_edge ... nc -z postgres 5432` (fails to resolve) — see the commit messages on `feature/docker-backend` (PRs #25, #28) | 🟡 Screenshot captured — still record this in the **video** demo because the brief asks for a live demonstration |
-| `.dockerignore` context sizes before/after | 2 | Reported in the `build(backend): multi-stage non-root Dockerfile` commit message (184.2 MB → 128 kB) | 🟡 In a commit message, not this folder — fine as-is unless the write-up wants it duplicated here |
+| `.dockerignore` context sizes before/after | 2 | `docker-image-sizes.md` (backend: 184.2 MB → 128 kB, re-verified today at 97.03 kB with no caches present, image 324 MB; frontend: 190.34 MB → 1.45 kB, image 112 MB, with a documented note on why the frontend image exceeds the brief's ~60 MB guidance) | ✅ Complete |
 
 ## D · Data layer
 
 | Rubric line | Marks | Evidence | Status |
 | --- | --- | --- | --- |
-| `docker compose down` / `up` preserves every row; same for deleting the Postgres pod on K8s | (persistence contract, "you will demonstrate both") | `compose-api-create-complaint-201.png` proves a row can be created through the running Compose stack<br>Verified live multiple times earlier (a complaint survives `down`/`up`; seed reports "already present" on rerun) — see commit messages | ⚪ Compose persistence still belongs in the **video** demo; the K8s-pod-deletion half can't be shown until `feature/k8s` exists |
+| `docker compose down` / `up` preserves every row; same for deleting the Postgres pod on K8s | (persistence contract, "you will demonstrate both") | `compose-api-create-complaint-201.png` proves a row can be created through the running Compose stack<br>Verified live multiple times earlier (a complaint survives `down`/`up`; seed reports "already present" on rerun) — see commit messages<br>`k8s-persistence-1-postgres-pod-deletion.txt` — creates a complaint, confirms the PVC is `Bound`, deletes `postgres-0` outright, waits for the StatefulSet to recreate it (new pod UID, new `startTime`), then re-fetches the same complaint by id through the fresh pod with an identical `created_at` — proves the row lived in the PVC, not the pod | ✅ Complete — both halves now have evidence; Compose persistence is still worth re-showing live in the **video** |
 
 ## H · Kubernetes
 
 | Rubric line | Marks | Evidence | Status |
 | --- | --- | --- | --- |
-| `kubectl get hpa -w` capture + replicas-vs-load chart | 4 | — | 🔴 Not started — needs `feature/k8s` and a load test |
-| VPA recommendations committed, requests updated in response | 3 | — | 🔴 Not started — needs `feature/k8s` |
+| `kubectl get hpa -w` capture + replicas-vs-load chart | 4 | `hpa-1-replicas-vs-load-chart.png` (replicas vs. offered load over time)<br>`hpa-2-kubectl-get-hpa-watch-output.txt` (live `kubectl get hpa -w` trace, target CPU 70%, scaling 2→4→5 replicas as load rises)<br>`hpa-3-k6-load-test-summary.txt` (k6 run: 44,478 requests, 0% failed, up to 40 VUs over 4 minutes)<br>`hpa-4-scaling-events.txt` (`kubectl describe hpa` event log: scale-up at 19:25:35 and 19:29:20 as CPU crossed the target) | ✅ Complete |
+| VPA recommendations committed, requests updated in response | 3 | `vpa-1-describe-recommendation-before.txt` (`kubectl describe vpa` Target recommendation before tuning)<br>`vpa-2-hpa-after-fix-chart.png`<br>`vpa-3-scaling-events-before-and-after.txt` (HPA scaling events before and after the backend's `resources.requests.cpu` was updated to match the VPA's ~548m recommendation)<br>`vpa-4-kubectl-get-hpa-watch-after-fix.txt` (HPA utilization reading correctly against the new request) | ✅ Complete — VPA runs in recommender mode (`updateMode: Off`); the backend Deployment's CPU request was manually updated in response to its recommendation, per ADR/engineering-notes explanation of why `Auto` is not used alongside the HPA |
 
 ## I · CI/CD
 
@@ -41,7 +41,7 @@ Kept honest on purpose: an empty row here is a to-do, not an oversight to hide.
 
 | Rubric line | Marks | Evidence | Status |
 | --- | --- | --- | --- |
-| README screenshots | (part of README's 4) | `readme-frontend-ui.png` (frontend loaded at `http://localhost/`)<br>`compose-stack-healthy.png` (Compose services healthy/exited 0)<br>`compose-api-stats-200.png` and `compose-api-complaints-200.png` (API examples for README/run proof) | 🟡 Started — add final README screenshots after CI/CD and K8s are present |
+| README screenshots | (part of README's 4) | `readme-frontend-ui.png` (frontend loaded at `http://localhost/`)<br>`compose-stack-healthy.png` (Compose services healthy/exited 0)<br>`compose-api-stats-200.png` and `compose-api-complaints-200.png` (API examples for README/run proof)<br>`localhost_dashboard.png`, `localhost_stats.png` (Dashboard and Stats views running live) | ✅ Complete — CI/CD and K8s evidence now exist too, so README screenshots reflect the finished system |
 | Demo video ≤ 5 min, both partners speaking | 3 | — | 🔴 Not started — the last thing to record, once Compose, K8s and CI/CD all work |
 
 ## Legend
