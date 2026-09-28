@@ -58,3 +58,7 @@ Confirm that the [runbook](RUNBOOK.md) is easy to find from the main README when
 
 Review the runbook explanation of immediate rollout undo and redeployment of a known-good image SHA.
 
+## Log inspection
+
+Review the runbook examples for accessing logs and tracing requests by request identifier.
+
