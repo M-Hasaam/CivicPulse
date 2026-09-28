@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [quality-gate, manifests]
     permissions:
-      contents: read
+      contents: write  # pushes the deploy/prod branch for the GitOps step
       packages: write
       id-token: write  # keyless cosign signing (Sigstore OIDC) - no key material
     env:
