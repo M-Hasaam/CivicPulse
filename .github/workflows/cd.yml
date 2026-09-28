@@ -242,6 +242,11 @@ jobs:
           kubectl rollout status deployment/backend -n civicpulse --timeout=180s
           kubectl rollout status deployment/frontend -n civicpulse --timeout=180s
 
+      # This port-forward is deliberately left running (no kill here) - the
+      # zero-downtime steps below (background k6 load, the rolling restart)
+      # need the same 127.0.0.1:8080 forward still alive. A background `&`
+      # process survives into later steps in this same job; it's killed once,
+      # at the end, in "Assert zero failed requests".
       - name: Smoke test the kind ingress
         run: |
           kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 8080:80 >/tmp/ingress-port-forward.log 2>&1 &
@@ -254,7 +259,6 @@ jobs:
           done
           curl --fail --silent -H 'Host: civicpulse.localhost' http://127.0.0.1:8080/
           curl --fail --silent -H 'Host: civicpulse.localhost' http://127.0.0.1:8080/api/stats
-          kill "$(cat /tmp/ingress-port-forward.pid)"
 
       - name: Verify HPA is reading live metrics
         run: |
@@ -302,6 +306,7 @@ jobs:
           failed=$(jq -r '.metrics.http_req_failed.values.passes' load/summary.json)
           total=$(jq -r '.metrics.http_reqs.values.count' load/summary.json)
           echo "total requests: $total, failed: $failed"
+          kill "$(cat /tmp/ingress-port-forward.pid)" 2>/dev/null || true
           test -n "$failed" && test "$failed" != "null"
           test "$failed" -eq 0
 
