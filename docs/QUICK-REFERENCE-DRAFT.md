@@ -54,3 +54,7 @@ The manual setup in the README uses Python 3.12 and Node.js 22, with PostgreSQL 
 
 Follow the README sequence: create the virtual environment, install development dependencies, apply Alembic migrations, seed data, and start uvicorn.
 
+## Frontend development
+
+From the frontend directory, the README uses npm ci followed by npm run dev. The development app is available at http://localhost:5173.
+
