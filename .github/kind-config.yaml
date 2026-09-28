@@ -1,0 +1,22 @@
+# Required for ingress-nginx's kind provider manifest, which only schedules
+# onto a node labeled ingress-ready=true (see kind's own ingress guide:
+# https://kind.sigs.k8s.io/docs/user/ingress/). Without this, the controller
+# pod sits Pending forever with "node(s) didn't match Pod's node affinity" -
+# a permanent scheduling failure, not a timing issue, however long you wait.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
