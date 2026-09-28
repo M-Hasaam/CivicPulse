@@ -221,10 +221,17 @@ jobs:
           # capacity immediately, unlike waiting for them to fail on their own.
           kubectl scale deployment prometheus grafana -n civicpulse --replicas=0
           kubectl wait --for=condition=complete job/migrate -n civicpulse --timeout=180s
-          # 300s not 180s: backend's 2nd replica (2 x 550m on a ~2 vCPU runner)
-          # needed more than 180s to schedule once - 1 of 2 was already ready
-          # right at the timeout. Not a hang, just tight margin.
-          kubectl rollout status deployment/backend -n civicpulse --timeout=300s
+          # Confirmed by two runs, not a timing margin: backend's 2nd replica
+          # (another 550m) genuinely cannot schedule on this ~2 vCPU runner
+          # even with Prometheus/Grafana freed - "0/1 nodes available:
+          # Insufficient cpu" every time, no matter how long the wait. The
+          # manifest still declares replicas: 2 (that's what's committed and
+          # what a real cluster runs); for this one CPU-starved ephemeral
+          # validation job, scale to 1 and lower the HPA's floor to match so
+          # it doesn't immediately fight the scale-down back up to 2.
+          kubectl patch hpa backend -n civicpulse --type merge -p '{"spec":{"minReplicas":1}}'
+          kubectl scale deployment backend -n civicpulse --replicas=1
+          kubectl rollout status deployment/backend -n civicpulse --timeout=180s
           kubectl rollout status deployment/frontend -n civicpulse --timeout=180s
 
       - name: Smoke test the kind ingress
