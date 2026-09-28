@@ -18,3 +18,7 @@ Check that readers can distinguish Docker Compose prerequisites from those requi
 
 Review the environment-copy instructions and confirm that example values are clearly distinguished from local credentials.
 
+## Provider selection
+
+Check that the rules and Ollama startup paths are easy to follow independently in the README.
+
