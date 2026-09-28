@@ -192,12 +192,18 @@ jobs:
           FRONTEND_DIGEST="${{ steps.meta.outputs.frontend }}@${{ steps.build-frontend.outputs.digest }}"
           echo "backend digest: $BACKEND_DIGEST"
           echo "frontend digest: $FRONTEND_DIGEST"
-          kubectl kustomize k8s/overlays/prod > rendered-prod.yaml
-          kubectl set image --local -f rendered-prod.yaml \
-            backend="$BACKEND_DIGEST" \
-            migrate="$BACKEND_DIGEST" \
-            frontend="$FRONTEND_DIGEST" \
-            -o yaml > rendered-prod-sha.yaml
+          # kubectl set image against the full rendered file used to be here, but
+          # it exits non-zero the moment ANY object in a multi-kind file (every
+          # Service, ConfigMap, Secret, PVC, PDB, HPA, Ingress...) doesn't have a
+          # matching container - which is all of them except backend/migrate/
+          # frontend. kustomize's own image transformer is the right tool: it
+          # matches by image name (backend's Deployment and the migrate Job both
+          # reference the same image name, so one edit updates both) and never
+          # errors on resources it doesn't touch.
+          (cd k8s/overlays/prod && kustomize edit set image \
+            "${{ steps.meta.outputs.backend }}=${BACKEND_DIGEST}" \
+            "${{ steps.meta.outputs.frontend }}=${FRONTEND_DIGEST}")
+          kubectl kustomize k8s/overlays/prod > rendered-prod-sha.yaml
           # A Job's pod template is immutable once created, so re-applying "migrate"
           # with a new image on top of a prior release's completed Job would fail
           # outright instead of deploying. Delete it first - every release gets a
