@@ -137,6 +137,16 @@ jobs:
           kind: Kustomization
           resources:
             - ../k8s/overlays/prod
+          # The small CI node also hosts the control plane and ingress.
+          # Keep both replicas; reserve less CPU only in this ephemeral cluster.
+          patches:
+            - target:
+                kind: Deployment
+                name: backend
+              patch: |-
+                - op: replace
+                  path: /spec/template/spec/containers/0/resources/requests/cpu
+                  value: 200m
           images:
             - name: ghcr.io/m-hasaam/civicpulse/backend
               newName: ${{ steps.meta.outputs.backend }}
