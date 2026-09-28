@@ -62,3 +62,7 @@ From the frontend directory, the README uses npm ci followed by npm run dev. The
 
 Follow the README Kubernetes quickstart to select a cluster, configure the local secrets file, apply the production overlay, and wait for rollouts.
 
+## Architecture decisions
+
+Read the ADRs on the [provider interface](adr/0001-provider-interface.md), [frontend configuration](adr/0002-frontend-runtime-config.md), [SHA deployment](adr/0003-deploy-by-sha.md), and [data governance](adr/0004-pii-and-data-governance.md).
+
