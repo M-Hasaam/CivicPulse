@@ -184,13 +184,60 @@ in (see `docs/adr/0002-frontend-runtime-config.md`), so nothing is rebuilt per e
 
 ### 1. Point `kubectl` at a cluster
 
-Any local cluster works — `kind`, `k3d`, or Docker Desktop's own Kubernetes. For `kind`:
+Any local cluster works — `kind`, `k3d`, or Docker Desktop's own Kubernetes. For `kind`,
+use the repo's config so the node gets the `ingress-ready=true` label step 2's Ingress
+controller requires (the same config CI uses, `.github/kind-config.yaml`):
 
 ```powershell
-kind create cluster --name civicpulse
+kind create cluster --name civicpulse --config .github/kind-config.yaml
 ```
 
-### 2. Set a real database password
+(`k3d` and Docker Desktop's Kubernetes don't need this label — it's only required by
+the kind-specific ingress-nginx manifest installed in step 2.)
+
+### 2. Install an Ingress controller
+
+A fresh `kind` cluster has no Ingress controller, and [`k8s/base/ingress.yaml`](k8s/base/ingress.yaml)
+needs one to route traffic. This is the same install CI uses (`.github/workflows/cd.yml`):
+
+```powershell
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/kind/deploy.yaml
+kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s
+```
+
+Skip this if your cluster already ships one (Docker Desktop's Kubernetes, most managed
+clusters).
+
+If the controller pod stays `Pending` (`kubectl describe pod -n ingress-nginx` shows
+`Node-Selectors: ingress-ready=true` with no matching node), your cluster was created
+without step 1's `--config` flag. Fix it without recreating the cluster:
+
+```powershell
+kubectl get nodes                                        # find the node name
+kubectl label node civicpulse-control-plane ingress-ready=true
+```
+
+### 3. Install metrics-server
+
+A fresh `kind` cluster also has no `metrics-server`, so `kubectl top` shows nothing and
+the [`HorizontalPodAutoscaler`](k8s/base/hpa.yaml) has no CPU data to scale on — it'll sit
+idle even under real load. Docker Desktop's own Kubernetes ships one automatically; `kind`
+doesn't. Same install CI uses:
+
+```powershell
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.7.2/components.yaml
+kubectl patch deployment metrics-server -n kube-system --type=json `
+  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+kubectl wait --namespace kube-system --for=condition=available deployment/metrics-server --timeout=120s
+```
+
+The `--kubelet-insecure-tls` patch is needed because `kind` nodes don't have kubelet
+certificates metrics-server would otherwise trust — fine for a local dev cluster, never
+do this against a real production one. `kubectl top nodes` and `kubectl top pods -n
+civicpulse` may return nothing for the first 15-30s after this while metrics-server
+collects its first sample.
+
+### 4. Set a real database password
 
 ```powershell
 Copy-Item k8s\overlays\prod\secrets.env.example k8s\overlays\prod\secrets.env
@@ -199,7 +246,7 @@ Copy-Item k8s\overlays\prod\secrets.env.example k8s\overlays\prod\secrets.env
 
 `secrets.env` is gitignored; the committed `.example` file only ever has a placeholder.
 
-### 3. Deploy
+### 5. Deploy
 
 ```powershell
 kubectl apply -k k8s\overlays\prod
@@ -213,14 +260,41 @@ Namespace, Deployments, a `StatefulSet` + PVC for Postgres, a `PodDisruptionBudg
 `k8s/base/`. Deleting the Postgres pod does not lose data — see
 `docs/evidence/k8s-persistence-1-postgres-pod-deletion.txt`.
 
-### 4. Reach the app
+If `kubectl get ingress -n civicpulse` shows nothing afterward, step 2's controller pod
+was `Ready` but its admission webhook wasn't quite up yet, so the API server's webhook
+call for the `Ingress` resource timed out while everything else in this apply succeeded.
+Just re-run `kubectl apply -k k8s\overlays\prod` — it's idempotent, so it only (re-)creates
+the one resource that failed.
+
+### 6. Reach the app
 
 If your cluster doesn't expose an Ingress on the host, port-forward it:
 
 ```powershell
 kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 8080:80
-curl -H "Host: civicpulse.localhost" http://127.0.0.1:8080/ready
+curl.exe -H "Host: civicpulse.localhost" http://127.0.0.1:8080/ready
 ```
+
+`curl.exe`, not `curl`: PowerShell aliases `curl` to `Invoke-WebRequest`, whose `-Headers`
+parameter needs a hashtable, not a `"Key: Value"` string. If you'd rather use PowerShell's
+native cmdlet instead of `curl.exe`:
+
+```powershell
+Invoke-WebRequest -Headers @{Host = "civicpulse.localhost"} http://127.0.0.1:8080/ready
+```
+
+Expect `{"status":"ready"}` back — the same response the Docker Compose version returns,
+now reached through Kubernetes' Ingress instead of nginx's `ports: 80:8080`.
+
+### 7. Tear down
+
+```powershell
+kind delete cluster --name civicpulse
+```
+
+Only removes the local `kind` cluster (its Docker containers and network endpoints) —
+it doesn't touch the git repo or the separate Docker Compose stack. Re-run step 1 to
+recreate it from scratch.
 
 Full deploy, rollback, log-reading and troubleshooting procedures: `docs/RUNBOOK.md`.
 HPA/VPA load-test results (real measured numbers, not estimates): `docs/evidence/hpa-*` and
