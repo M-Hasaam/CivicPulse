@@ -68,6 +68,14 @@ jobs:
           docker image prune -af || true
           df -h /
 
+      # Pulled here, not inline in "docker run -d" later: a cold pull took
+      # ~60s once and threw off the timing between starting k6 and the
+      # rolling restart enough that k6 (a 90s run) was gone - "No such
+      # container" - by the time the wait step checked on it. One ~10-20s
+      # step now means "docker run -d" starts instantly when it matters.
+      - name: Pre-pull the k6 image
+        run: docker pull grafana/k6:0.54.0
+
       - name: Set image metadata
         id: meta
         run: |
