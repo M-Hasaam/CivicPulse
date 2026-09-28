@@ -166,6 +166,23 @@ jobs:
             --for=condition=available deployment --all --timeout=300s
           kubectl rollout status statefulset/argocd-application-controller -n argocd --timeout=300s
 
+      # This repository is private, so the Application's git source needs
+      # credentials or the repo-server fails with "authentication required" -
+      # GITHUB_TOKEN over HTTPS, the same pattern GitHub itself recommends
+      # for git operations from a workflow (username is a placeholder value;
+      # only the token is checked).
+      - name: Configure Argo CD repository credentials
+        run: |
+          kubectl create secret generic civicpulse-repo \
+            --namespace argocd \
+            --from-literal=type=git \
+            --from-literal=url=https://github.com/${{ github.repository }}.git \
+            --from-literal=username=x-access-token \
+            --from-literal=password='${{ secrets.GITHUB_TOKEN }}' \
+            --dry-run=client -o yaml \
+            | kubectl label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
+            | kubectl apply -f -
+
       - name: Configure GHCR pull secret
         run: |
           kubectl create namespace civicpulse --dry-run=client -o yaml | kubectl apply -f -
