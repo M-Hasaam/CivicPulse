@@ -10,6 +10,7 @@ resources:
   - ingress.yaml
   - hpa.yaml
   - pdb.yaml
+  - observability.yaml
 configMapGenerator:
   - name: civicpulse-config
     literals:
@@ -33,6 +34,7 @@ secretGenerator:
       - POSTGRES_PASSWORD=change_me
       - POSTGRES_DB=civicpulse
       - GROQ_API_KEY=
+      - GRAFANA_ADMIN_PASSWORD=change_me
 generatorOptions:
   disableNameSuffixHash: true
 images:

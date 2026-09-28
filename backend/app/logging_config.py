@@ -21,7 +21,7 @@ _SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 # Attributes every LogRecord has; anything else was passed via extra= and is logged too
 _STANDARD_ATTRS = set(logging.makeLogRecord({}).__dict__) | {
-    "message", "asctime", "request_id",
+    "message", "asctime", "request_id", "trace_id",
     "color_message",  # uvicorn: the same message with terminal colour codes
 }
 
@@ -40,6 +40,7 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
             "request_id": getattr(record, "request_id", "-"),
+            "trace_id": getattr(record, "trace_id", "-"),
         }
         for key, value in record.__dict__.items():
             if key not in _STANDARD_ATTRS and not key.startswith("_"):
@@ -55,6 +56,12 @@ def configure_logging(level: str = "INFO") -> None:
     def factory(*args: Any, **kwargs: Any) -> logging.LogRecord:
         record = base_factory(*args, **kwargs)
         record.request_id = request_id_var.get()
+        # Imported lazily: telemetry.py is not imported at module load time to
+        # avoid a circular import (telemetry doesn't need logging_config, but
+        # this keeps the dependency direction one-way regardless).
+        from app.telemetry import current_trace_id
+
+        record.trace_id = current_trace_id()
         return record
 
     if not getattr(logging.getLogRecordFactory(), "_civicpulse", False):

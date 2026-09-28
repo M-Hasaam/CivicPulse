@@ -83,6 +83,7 @@ services:
       GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
       RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-10}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
       # Hardcoded, not read from .env: this file always runs behind the frontend's
@@ -147,6 +148,45 @@ services:
       resources:
         limits: {cpus: "0.5", memory: 128M}
 
+  # Bonus: same as compose.yaml, but no published UI port.
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks: [edge]
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
+  # Bonus: same as compose.yaml, but no published port - reached via
+  # `docker compose -f compose.prod.yaml exec` or a future ingress path.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks: [edge]
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change_me}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    networks: [edge]
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
 networks:
   edge:
     driver: bridge
@@ -163,3 +203,4 @@ volumes:
   pgdata:
   redisdata:
   ollama_models:
+  grafanadata:

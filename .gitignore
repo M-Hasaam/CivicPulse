@@ -61,3 +61,7 @@ Thumbs.db
 pgdata/
 redisdata/
 ollama_models/
+
+# Local AI-assistant working notes (design specs, implementation plans) -
+# not part of the product, never committed
+docs/superpowers/

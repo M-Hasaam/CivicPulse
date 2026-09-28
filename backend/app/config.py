@@ -11,6 +11,9 @@ REPO_ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
 class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     LOG_LEVEL: str = "INFO"
+    # OTLP/HTTP collector base URL (e.g. http://jaeger:4318). Unset = tracing
+    # spans are created but never exported - safe no-op, never a startup error.
+    OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
 
     # PostgreSQL 16 - required, never defaulted: credentials come from the environment only
     DATABASE_URL: str

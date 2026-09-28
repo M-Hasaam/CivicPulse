@@ -17,6 +17,7 @@ from app.cache.triage_cache import cache_triage, get_cached_triage
 from app.metrics import TRIAGE_CACHE, TRIAGE_FALLBACKS, TRIAGE_LATENCY
 from app.providers.triage.base import TriageProvider, TriageResult
 from app.providers.triage.rules import RuleBasedTriage
+from app.telemetry import traced_span
 
 logger = logging.getLogger(__name__)
 
@@ -88,27 +89,28 @@ class TriageOrchestrator:
         return outcome
 
     async def _from_provider(self, text: str, location: str, started: float) -> TriageOutcome:
-        try:
-            result = await self.provider.triage(text, location)
-        except Exception as exc:  # any provider failure - known or not - must not reach the user
-            error_class = type(exc).__name__
-            TRIAGE_FALLBACKS.labels(provider=self.provider.name, error=error_class).inc()
-            result = await self.fallback.triage(text, location)
+        with traced_span("triage.provider_call", provider=self.provider.name):
+            try:
+                result = await self.provider.triage(text, location)
+            except Exception as exc:  # any provider failure - known or not - must not reach the user
+                error_class = type(exc).__name__
+                TRIAGE_FALLBACKS.labels(provider=self.provider.name, error=error_class).inc()
+                result = await self.fallback.triage(text, location)
+                return TriageOutcome(
+                    result=result,
+                    triaged_by=FALLBACK_NAME,
+                    latency_ms=_elapsed_ms(started),
+                    fallback=True,
+                    cached=False,
+                    error_class=error_class,
+                )
             return TriageOutcome(
                 result=result,
-                triaged_by=FALLBACK_NAME,
+                triaged_by=self.provider.name,
                 latency_ms=_elapsed_ms(started),
-                fallback=True,
+                fallback=False,
                 cached=False,
-                error_class=error_class,
             )
-        return TriageOutcome(
-            result=result,
-            triaged_by=self.provider.name,
-            latency_ms=_elapsed_ms(started),
-            fallback=False,
-            cached=False,
-        )
 
 
 def _elapsed_ms(started: float) -> int:

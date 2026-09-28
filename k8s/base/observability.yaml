@@ -1,0 +1,233 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: civicpulse
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 10s
+      evaluation_interval: 10s
+    scrape_configs:
+      - job_name: civicpulse-backend
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["backend:8000"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: civicpulse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+      app.kubernetes.io/part-of: civicpulse
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: prometheus
+        app.kubernetes.io/part-of: civicpulse
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.55.1
+          args: ["--config.file=/etc/prometheus/prometheus.yml"]
+          ports:
+            - name: http
+              containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 300m, memory: 256Mi}
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: civicpulse
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: civicpulse
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: civicpulse
+data:
+  prometheus.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus-civicpulse
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: civicpulse
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: civicpulse
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        options:
+          path: /etc/grafana/provisioning/dashboards
+---
+# Kept in sync with grafana/provisioning/dashboards/civicpulse.json by hand -
+# kustomize's file-source sandbox refuses references outside k8s/base/, so a
+# generator can't pull that file in directly. Same panels, same metric names
+# (backend/app/metrics.py), same datasource uid as the Compose copy.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-json
+  namespace: civicpulse
+data:
+  civicpulse.json: |
+    {
+      "title": "CivicPulse",
+      "uid": "civicpulse",
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "time": {"from": "now-15m", "to": "now"},
+      "panels": [
+        {
+          "title": "HTTP request rate",
+          "type": "timeseries",
+          "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "prometheus-civicpulse"},
+          "targets": [
+            {
+              "expr": "sum(rate(civicpulse_http_requests_total[1m])) by (endpoint)",
+              "legendFormat": "{{endpoint}}"
+            }
+          ]
+        },
+        {
+          "title": "HTTP request latency p95",
+          "type": "timeseries",
+          "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "prometheus-civicpulse"},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(civicpulse_http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+              "legendFormat": "{{endpoint}}"
+            }
+          ]
+        },
+        {
+          "title": "Triage latency p95 by provider",
+          "type": "timeseries",
+          "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "prometheus-civicpulse"},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(civicpulse_triage_duration_seconds_bucket[5m])) by (le, provider))",
+              "legendFormat": "{{provider}}"
+            }
+          ]
+        },
+        {
+          "title": "Triage fallbacks (total)",
+          "type": "stat",
+          "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+          "datasource": {"type": "prometheus", "uid": "prometheus-civicpulse"},
+          "targets": [
+            {"expr": "sum(civicpulse_triage_fallback_total)"}
+          ]
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: civicpulse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+      app.kubernetes.io/part-of: civicpulse
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grafana
+        app.kubernetes.io/part-of: civicpulse
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.3.1
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: civicpulse-secrets
+                  key: GRAFANA_ADMIN_PASSWORD
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yml
+              subPath: dashboards.yml
+            - name: dashboard-json
+              mountPath: /etc/grafana/provisioning/dashboards/civicpulse.json
+              subPath: civicpulse.json
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 300m, memory: 256Mi}
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboard-json
+          configMap:
+            name: grafana-dashboard-json
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: civicpulse
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: civicpulse
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http

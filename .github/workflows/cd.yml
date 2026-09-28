@@ -46,6 +46,10 @@ jobs:
     name: Publish GHCR images and deploy to kind
     runs-on: ubuntu-24.04
     needs: [quality-gate, manifests]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write  # keyless cosign signing (Sigstore OIDC) - no key material
     env:
       REGISTRY: ghcr.io
     steps:
@@ -72,6 +76,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push backend image
+        id: build-backend
         uses: docker/build-push-action@v6
         with:
           context: backend
@@ -81,6 +86,7 @@ jobs:
             ${{ steps.meta.outputs.backend }}:latest
 
       - name: Build and push frontend image
+        id: build-frontend
         uses: docker/build-push-action@v6
         with:
           context: frontend
@@ -88,6 +94,34 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.sha }}
             ${{ steps.meta.outputs.frontend }}:latest
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.7.0
+
+      - name: Sign backend and frontend images (keyless)
+        run: |
+          cosign sign --yes "${{ steps.meta.outputs.backend }}@${{ steps.build-backend.outputs.digest }}"
+          cosign sign --yes "${{ steps.meta.outputs.frontend }}@${{ steps.build-frontend.outputs.digest }}"
+
+      - name: Generate SBOM for backend image
+        uses: anchore/sbom-action@v0.17.9
+        with:
+          image: "${{ steps.meta.outputs.backend }}@${{ steps.build-backend.outputs.digest }}"
+          format: spdx-json
+          output-file: sbom-backend.spdx.json
+
+      - name: Generate SBOM for frontend image
+        uses: anchore/sbom-action@v0.17.9
+        with:
+          image: "${{ steps.meta.outputs.frontend }}@${{ steps.build-frontend.outputs.digest }}"
+          format: spdx-json
+          output-file: sbom-frontend.spdx.json
+
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@v4
+        with:
+          name: sboms
+          path: sbom-*.spdx.json
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.12.0
@@ -111,6 +145,14 @@ jobs:
             --for=condition=available deployment/metrics-server \
             --timeout=120s
 
+      - name: Install Argo CD
+        run: |
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.13.2/manifests/install.yaml
+          kubectl wait --namespace argocd \
+            --for=condition=available deployment --all --timeout=300s
+          kubectl rollout status statefulset/argocd-application-controller -n argocd --timeout=300s
+
       - name: Configure GHCR pull secret
         run: |
           kubectl create namespace civicpulse --dry-run=client -o yaml | kubectl apply -f -
@@ -125,26 +167,70 @@ jobs:
         run: |
           cat > k8s/overlays/prod/secrets.env <<EOF
           POSTGRES_PASSWORD=$(openssl rand -hex 24)
+          GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 24)
           EOF
 
-      - name: Deploy SHA-tagged images
+      # NOTE: this identity only matches a real `push` to `main` (this workflow's
+      # only non-manual trigger). A `workflow_dispatch` test run from a feature
+      # branch has a different certificate identity (refs/heads/<branch>) and
+      # will fail this check - by design, since this is the gate that decides
+      # what's allowed to reach the cluster. To test signing/verification from a
+      # branch, temporarily widen the regexp below to `refs/heads/.*` locally,
+      # then revert before merging - never loosen it in a commit that lands on main.
+      - name: Verify image signatures before deploying
         run: |
-          kubectl kustomize k8s/overlays/prod > rendered-prod.yaml
-          kubectl set image --local -f rendered-prod.yaml \
-            backend=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
-            migrate=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
-            frontend=${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.sha }} \
-            -o yaml > rendered-prod-sha.yaml
-          # A Job's pod template is immutable once created, so re-applying "migrate"
-          # with a new image on top of a prior release's completed Job would fail
-          # outright instead of deploying. Delete it first - every release gets a
-          # fresh run. --ignore-not-found covers both "no prior Job" and "no
-          # namespace yet" (first-ever deploy).
-          kubectl delete job/migrate -n civicpulse --ignore-not-found --wait=true
-          kubectl apply -f rendered-prod-sha.yaml
-          kubectl wait --for=condition=complete job/migrate -n civicpulse --timeout=180s
-          kubectl rollout status deployment/backend -n civicpulse --timeout=180s
-          kubectl rollout status deployment/frontend -n civicpulse --timeout=180s
+          cosign verify \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.github/workflows/cd.yml@refs/heads/main$" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${{ steps.meta.outputs.backend }}@${{ steps.build-backend.outputs.digest }}"
+          cosign verify \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/.github/workflows/cd.yml@refs/heads/main$" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${{ steps.meta.outputs.frontend }}@${{ steps.build-frontend.outputs.digest }}"
+
+      # GitOps: instead of applying manifests directly, commit the new image
+      # digests to a dedicated deploy/prod branch (bot-authored only, never
+      # main - so this can't retrigger this workflow) and let Argo CD
+      # reconcile the cluster from that branch.
+      - name: Update deploy/prod with the new image references
+        run: |
+          BACKEND_DIGEST="${{ steps.meta.outputs.backend }}@${{ steps.build-backend.outputs.digest }}"
+          FRONTEND_DIGEST="${{ steps.meta.outputs.frontend }}@${{ steps.build-frontend.outputs.digest }}"
+          echo "backend digest: $BACKEND_DIGEST"
+          echo "frontend digest: $FRONTEND_DIGEST"
+          git config user.name "civicpulse-cd-bot"
+          git config user.email "cd-bot@users.noreply.github.com"
+          git fetch origin deploy/prod || true
+          if git show-ref --verify --quiet refs/remotes/origin/deploy/prod; then
+            git checkout -B deploy/prod origin/deploy/prod
+          else
+            git checkout -B deploy/prod
+          fi
+          git checkout "${{ steps.meta.outputs.sha }}" -- k8s
+          cd k8s/overlays/prod
+          kustomize edit set image \
+            "${{ steps.meta.outputs.backend }}=${BACKEND_DIGEST}" \
+            "${{ steps.meta.outputs.frontend }}=${FRONTEND_DIGEST}"
+          cd -
+          git add k8s
+          git commit -m "deploy: backend ${{ steps.build-backend.outputs.digest }}, frontend ${{ steps.build-frontend.outputs.digest }}" --allow-empty
+          git push origin deploy/prod
+
+      - name: Deploy the Argo CD Application
+        run: |
+          kubectl apply -f k8s/argocd/application.yaml
+          for i in $(seq 1 40); do
+            health=$(kubectl get application civicpulse -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
+            sync=$(kubectl get application civicpulse -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "")
+            echo "health=$health sync=$sync ($i/40)"
+            if [ "$health" = "Healthy" ] && [ "$sync" = "Synced" ]; then
+              break
+            fi
+            sleep 10
+          done
+          kubectl get application civicpulse -n argocd -o yaml
+          test "$(kubectl get application civicpulse -n argocd -o jsonpath='{.status.health.status}')" = "Healthy"
+          test "$(kubectl get application civicpulse -n argocd -o jsonpath='{.status.sync.status}')" = "Synced"
 
       - name: Smoke test the kind ingress
         run: |
@@ -173,6 +259,55 @@ jobs:
           done
           kubectl get hpa -n civicpulse
           test "$(kubectl get hpa backend -n civicpulse -o jsonpath='{.status.conditions[?(@.type=="ScalingActive")].status}')" = "True"
+
+      - name: Warm up and start background load
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent -H 'Host: civicpulse.localhost' http://127.0.0.1:8080/ready | grep -q '"status":"ready"'; then
+              break
+            fi
+            sleep 2
+          done
+          docker run --rm -d --name k6-zero-downtime --network host \
+            -v "${{ github.workspace }}/load:/load" \
+            -e BASE_URL=http://127.0.0.1:8080 \
+            -e HOST_HEADER=civicpulse.localhost \
+            -e K6_DURATION=90s \
+            grafana/k6:0.54.0 run /load/k6-zero-downtime.js --out json=/load/raw.jsonl
+
+      - name: Trigger a rolling restart mid-load
+        run: |
+          sleep 15
+          kubectl rollout restart deployment/backend -n civicpulse
+          kubectl rollout status deployment/backend -n civicpulse --timeout=180s
+
+      - name: Wait for k6 to finish and collect the summary
+        run: |
+          docker wait k6-zero-downtime
+          docker logs k6-zero-downtime
+          test -f load/summary.json
+
+      - name: Assert zero failed requests
+        run: |
+          failed=$(jq -r '.metrics.http_req_failed.values.passes' load/summary.json)
+          total=$(jq -r '.metrics.http_reqs.values.count' load/summary.json)
+          echo "total requests: $total, failed: $failed"
+          test -n "$failed" && test "$failed" != "null"
+          test "$failed" -eq 0
+
+      - name: Save zero-downtime evidence
+        if: always()
+        run: |
+          mkdir -p docs/evidence
+          cp load/summary.json docs/evidence/zero-downtime-1-k6-summary.json || true
+          kubectl rollout status deployment/backend -n civicpulse > docs/evidence/zero-downtime-2-rollout-log.txt || true
+
+      - name: Upload zero-downtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zero-downtime-evidence
+          path: docs/evidence/zero-downtime-*.*
 
       - name: Show cluster state on failure
         if: failure()

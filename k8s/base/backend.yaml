@@ -3,6 +3,14 @@ kind: Job
 metadata:
   name: migrate
   namespace: civicpulse
+  annotations:
+    # Argo CD deletes and recreates this Job on every sync (see the GitOps
+    # bonus item) - a Job's pod template is immutable, so this replaces the
+    # imperative `kubectl delete job/migrate` step cd.yml otherwise needs.
+    # A plain `kubectl apply -k` (manual/local deploys) ignores these
+    # annotations harmlessly and still needs that manual delete.
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
 spec:
   backoffLimit: 3
   template:

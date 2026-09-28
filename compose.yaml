@@ -80,6 +80,7 @@ services:
       TRUSTED_PROXY_HOPS: "1"
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
     # Development only: the host's source is mounted over the image's copy and
     # uvicorn reloads on change. compose.prod.yaml runs exactly what was built
     # and scanned, so it has neither the mount nor --reload.
@@ -174,6 +175,53 @@ services:
       resources:
         limits: {cpus: "0.5", memory: 128M}
 
+  # Bonus: OTLP trace sink for the backend and (via nginx's /otlp/ proxy) the
+  # frontend. Built-in OTLP receiver on 4317/4318 - no separate Collector needed.
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"  # http://localhost:16686 - Jaeger UI, dev-only convenience
+    networks: [edge]
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
+  # Bonus: scrapes backend:8000/metrics. Joins `edge` only (same network
+  # frontend/backend already share) - no new network needed, and no route to
+  # postgres/redis either way.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks: [edge]
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
+  # Bonus: dashboard provisioned from grafana/provisioning/ - no manual
+  # click-ops after `up`. Published on 3001 for local browsing only.
+  grafana:
+    image: grafana/grafana:11.3.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change_me}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    ports:
+      - "3001:3000"  # http://localhost:3001 - dev-only convenience
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    networks: [edge]
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
 networks:
   edge:
     driver: bridge
@@ -190,3 +238,4 @@ volumes:
   pgdata:     # PostgreSQL data directory: the durable one
   redisdata:  # Redis AOF log
   ollama_models:  # model weights, so ~1.3 GB is not re-pulled on every up
+  grafanadata:  # dashboard/user edits made through the UI survive a restart

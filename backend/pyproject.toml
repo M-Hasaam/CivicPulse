@@ -14,6 +14,12 @@ dependencies = [
     "alembic>=1.13.2",
     "httpx>=0.27.0",
     "redis>=5.0.0",
+    "opentelemetry-sdk>=1.28.0",
+    "opentelemetry-instrumentation-fastapi>=0.49b0",
+    "opentelemetry-instrumentation-httpx>=0.49b0",
+    "opentelemetry-instrumentation-asyncpg>=0.49b0",
+    "opentelemetry-instrumentation-redis>=0.49b0",
+    "opentelemetry-exporter-otlp-proto-http>=1.28.0",
 ]
 
 [project.optional-dependencies]

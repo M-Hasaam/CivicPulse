@@ -13,6 +13,14 @@ export default defineConfig({
         target: process.env.VITE_DEV_API_PROXY_TARGET ?? 'http://localhost:8000',
         changeOrigin: true,
       },
+      // Bonus: OpenTelemetry traces. No-op unless Jaeger happens to be
+      // reachable from a manual `npm run dev` session; kept for consistency
+      // with the /api proxy above.
+      '/otlp': {
+        target: process.env.VITE_DEV_OTLP_PROXY_TARGET ?? 'http://localhost:4318',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/otlp/, ''),
+      },
     },
   },
   test: {

@@ -1,0 +1,54 @@
+{
+  "title": "CivicPulse",
+  "uid": "civicpulse",
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "time": {"from": "now-15m", "to": "now"},
+  "panels": [
+    {
+      "title": "HTTP request rate",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus-civicpulse"},
+      "targets": [
+        {
+          "expr": "sum(rate(civicpulse_http_requests_total[1m])) by (endpoint)",
+          "legendFormat": "{{endpoint}}"
+        }
+      ]
+    },
+    {
+      "title": "HTTP request latency p95",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus-civicpulse"},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(civicpulse_http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "{{endpoint}}"
+        }
+      ]
+    },
+    {
+      "title": "Triage latency p95 by provider",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus-civicpulse"},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(civicpulse_triage_duration_seconds_bucket[5m])) by (le, provider))",
+          "legendFormat": "{{provider}}"
+        }
+      ]
+    },
+    {
+      "title": "Triage fallbacks (total)",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus-civicpulse"},
+      "targets": [
+        {"expr": "sum(civicpulse_triage_fallback_total)"}
+      ]
+    }
+  ]
+}
