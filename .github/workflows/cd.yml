@@ -221,7 +221,10 @@ jobs:
           # capacity immediately, unlike waiting for them to fail on their own.
           kubectl scale deployment prometheus grafana -n civicpulse --replicas=0
           kubectl wait --for=condition=complete job/migrate -n civicpulse --timeout=180s
-          kubectl rollout status deployment/backend -n civicpulse --timeout=180s
+          # 300s not 180s: backend's 2nd replica (2 x 550m on a ~2 vCPU runner)
+          # needed more than 180s to schedule once - 1 of 2 was already ready
+          # right at the timeout. Not a hang, just tight margin.
+          kubectl rollout status deployment/backend -n civicpulse --timeout=300s
           kubectl rollout status deployment/frontend -n civicpulse --timeout=180s
 
       - name: Smoke test the kind ingress
