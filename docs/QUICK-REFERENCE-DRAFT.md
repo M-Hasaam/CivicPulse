@@ -22,3 +22,7 @@ The README recommends Docker Desktop for the Compose quickstart. Run the setup c
 
 Copy .env.example to .env before starting the stack. Keep local credentials out of Git and use placeholders in examples.
 
+## Rules provider
+
+The default TRIAGE_PROVIDER=rules requires no API key or model download. Follow the rules-specific Compose command in the README.
+
