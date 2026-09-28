@@ -46,3 +46,7 @@ Review the frontend setup instructions for their working directory, dependency i
 
 Review the Kubernetes quickstart for cluster selection, secrets configuration, and overlay application.
 
+## Rollout inspection
+
+Check that the Kubernetes instructions explain waiting for migration completion and application rollouts.
+
