@@ -62,3 +62,7 @@ Review the runbook explanation of immediate rollout undo and redeployment of a k
 
 Review the runbook examples for accessing logs and tracing requests by request identifier.
 
+## Triage troubleshooting
+
+Check that the runbook connects provider metadata, fallback metrics, warning logs, and dependency readiness to diagnosis.
+
