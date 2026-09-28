@@ -56,6 +56,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      # This job now builds two images, signs them, and generates two SBOMs
+      # before it ever creates the kind cluster - enough extra disk/layer
+      # usage on a standard runner to starve the later `kind` + ingress-nginx
+      # image pull, which is what was timing out. Free the ~20-30 GB of
+      # preinstalled toolchains this job never uses, before anything else runs.
+      - name: Free disk space on the runner
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          docker image prune -af || true
+          df -h /
+
       - name: Set image metadata
         id: meta
         run: |
@@ -312,6 +324,11 @@ jobs:
       - name: Show cluster state on failure
         if: failure()
         run: |
+          df -h / || true
+          docker system df || true
+          kubectl get pods,events -n ingress-nginx -o wide || true
+          kubectl describe pods -n ingress-nginx || true
+          kubectl get pods,events -n argocd -o wide || true
           kubectl get all,ingress,hpa -n civicpulse -o wide || true
           kubectl describe pods -n civicpulse || true
           kubectl logs -n civicpulse -l app.kubernetes.io/name=backend --tail=200 || true
