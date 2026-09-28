@@ -34,3 +34,7 @@ Check that the README distinguishes the app address, API documentation address, 
 
 Review the explanation of volume retention and deletion alongside the Compose shutdown commands.
 
+## Backend development
+
+Check the manual backend setup sequence for installation, migrations, seed data, and server startup.
+
