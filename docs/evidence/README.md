@@ -111,20 +111,13 @@ Kept honest on purpose: an empty or 🔴 row here is a to-do, not an oversight t
 | Demo video ≤ 5 minutes, both partners speaking, covering clean clone → running system, AI triage, fallback, network isolation failing, HPA scaling, rollback | 3 | Supporting material: [compose-stack-healthy.png](compose-stack-healthy.png) (running stack)<br>[compose-frontend-cannot-reach-postgres.png](compose-frontend-cannot-reach-postgres.png) (network isolation)<br>[hpa-1-replicas-vs-load-chart.png](hpa-1-replicas-vs-load-chart.png), [hpa-2-kubectl-get-hpa-watch-output.txt](hpa-2-kubectl-get-hpa-watch-output.txt) (HPA scaling) | 🟡 Partial — supporting screenshots/logs captured for some demo topics; the ≤ 5-minute video with both partners speaking and all required demonstrations is still outstanding. Screenshots do not replace the video requirement. |
 | `docs/ENGINEERING-NOTES.md` answering all eight questions in §5.2 with file-and-line references | 2 | [../ENGINEERING-NOTES.md](../ENGINEERING-NOTES.md) | ✅ Complete |
 
-## Bonus — capped at +15
-
-Existing implementation and captures are linked below. Partial evidence does not establish
-completion of the full bonus requirement; the missing demonstrations are stated explicitly.
-
-| Rubric line | Marks | Evidence | Status |
-| --- | --- | --- | --- |
-| Zero-downtime rolling update under live load with zero failed requests | +4 | [hpa-3-k6-load-test-summary.txt](hpa-3-k6-load-test-summary.txt) (44,478 requests, 0% failed)<br>[hpa-4-scaling-events.txt](hpa-4-scaling-events.txt) (HPA scaling events)<br>[../../k8s/base/backend.yaml](../../k8s/base/backend.yaml) · [../../k8s/base/frontend.yaml](../../k8s/base/frontend.yaml) (`maxUnavailable: 0`, `maxSurge: 1`) | 🟡 Partial — load results and rollout configuration exist, but no linked capture establishes an image update during that load test. Capture the image change, rollout progress, and zero-failure load summary from the same run. |
-| GitOps: Argo CD or Flux reconciling the cluster from the repository | +4 | [../../.github/workflows/cd.yml](../../.github/workflows/cd.yml) (current deployment uses `kubectl apply`) | 🔴 Not evidenced — no Argo CD/Flux configuration or reconciliation capture found in this branch. |
-| Deploy by image digest rather than tag, with Cosign signing and verification in CI | +3 | [../../.github/workflows/cd.yml](../../.github/workflows/cd.yml) (deploys commit-SHA **tags**)<br>[../adr/0003-deploy-by-sha.md](../adr/0003-deploy-by-sha.md) (current deployment decision) | 🔴 Not evidenced — digest deployment and Cosign signing/verification steps are absent from the current CD workflow. |
-| Prometheus scraping `/metrics` plus a Grafana dashboard, screenshot committed | +2 | [../../backend/app/routes/health.py](../../backend/app/routes/health.py) (`/metrics` endpoint)<br>[../../backend/app/metrics.py](../../backend/app/metrics.py) (metric definitions) | 🟡 Partial — metrics exposition exists; no Prometheus scrape configuration, Grafana dashboard, or dashboard screenshot found. The Grafana name in the k6 banner is not a dashboard capture. |
-| OpenTelemetry tracing across frontend → backend → LLM call | +2 | — | 🔴 Not evidenced — no OpenTelemetry instrumentation or end-to-end trace capture found in this branch. |
-
 ## Bonus (capped at +15)
+
+The table below supersedes an earlier audit of this same section (written against
+`dev` before this branch's bonus work landed) — Prometheus/Grafana and OTel are no
+longer "not evidenced," and zero-downtime/digest+Cosign are mid-CI-verification
+rather than unstarted. See this branch's commit history for the detailed diagnosis
+of each fix, including the GitOps attempt and why it was dropped.
 
 All five files below are prefixed `bonus-` on purpose, so they sort together and
 are easy to find separately from the core-rubric evidence above.
@@ -157,11 +150,11 @@ are easy to find separately from the core-rubric evidence above.
 - Digest + Cosign: screenshot the `Verify image signatures before deploying` step's log (showing both `cosign verify` calls succeeding), or run `cosign verify --certificate-identity-regexp ".*" --certificate-oidc-issuer https://token.actions.githubusercontent.com ghcr.io/m-hasaam/civicpulse/backend@<digest-from-the-log>` yourself and save its JSON output as `bonus-cosign-verify.txt`.
 
 ## Legend
-✅ complete · 🟡 partial (some evidence exists; gaps are stated in the row) · 🔴 not started / not evidenced in this branch
+✅ complete · 🟡 partial (some evidence exists; gaps are stated in the row) · 🔴 not started / not evidenced in this branch · ⚫ attempted and deliberately dropped (see the note on that row)
 
 ## Still open
 - **Demo video** (J, 3 marks) — supporting screenshots/logs are linked above; record and link a ≤ 5-minute video with both partners speaking, covering every required demo topic.
-- **Bonus evidence** (up to +15) — see the bonus table for existing files and the missing implementation or captures; no full bonus item is marked complete yet.
+- **Bonus evidence** (up to +15) — Grafana dashboard is complete; OTel tracing is partial (search-list screenshot done, waterfall still needed); zero-downtime and digest+Cosign are implemented and passing locally in CI (evidence capture from a real `cd.yml` run still needed); GitOps was implemented, tested, and deliberately dropped — see this branch's commit history.
 
 ## Adding new evidence
 Each item gets its own small branch + Issue + PR into `dev`, same as everything else in this repo — see `COMMIT-PLAN.md` (on the `team-plan` branch) for the workflow. Update this file's table in the same PR that adds the screenshot.
