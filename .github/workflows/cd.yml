@@ -282,7 +282,12 @@ jobs:
             fi
             sleep 2
           done
-          docker run --rm -d --name k6-zero-downtime --network host \
+          # No --rm: it auto-deletes the container the instant it exits,
+          # which has twice now hidden why k6 exited well before its 90s
+          # duration ("No such container" with zero log output to explain
+          # it). Removed on purpose so a crash is inspectable instead of
+          # silently vanishing.
+          docker run -d --name k6-zero-downtime --network host \
             -v "${{ github.workspace }}/load:/load" \
             -e BASE_URL=http://127.0.0.1:8080 \
             -e HOST_HEADER=civicpulse.localhost \
@@ -297,8 +302,10 @@ jobs:
 
       - name: Wait for k6 to finish and collect the summary
         run: |
+          docker ps -a --filter name=k6-zero-downtime
           docker wait k6-zero-downtime
           docker logs k6-zero-downtime
+          docker rm -f k6-zero-downtime || true
           test -f load/summary.json
 
       - name: Assert zero failed requests
