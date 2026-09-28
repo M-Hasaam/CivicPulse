@@ -14,3 +14,7 @@ The [evidence index](evidence/README.md) maps captured artifacts to the assignme
 
 Use the [runbook](RUNBOOK.md) for deployment, rollback, log inspection, and triage troubleshooting.
 
+## Compose prerequisites
+
+The README recommends Docker Desktop for the Compose quickstart. Run the setup commands from the repository root.
+
