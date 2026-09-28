@@ -1,0 +1,33 @@
+# Only what the image needs goes to the daemon: pyproject.toml, alembic*, app/.
+# Everything below is local state, secrets or test-only.
+
+.git
+.gitignore
+.env
+.env.*
+
+# virtualenvs and caches
+.venv
+venv
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+*.egg-info
+build
+dist
+
+# tests and fixtures never ship
+tests
+
+# docs and editor files
+*.md
+.vscode
+.idea
+
+Dockerfile
+.dockerignore

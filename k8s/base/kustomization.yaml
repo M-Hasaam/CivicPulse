@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - postgres.yaml
+  - redis.yaml
+  - backend.yaml
+  - frontend.yaml
+  - ingress.yaml
+  - hpa.yaml
+  - pdb.yaml
+configMapGenerator:
+  - name: civicpulse-config
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - REDIS_URL=redis://redis:6379/0
+      - TRIAGE_PROVIDER=simulated
+      - RATE_LIMIT_MAX_REQUESTS=10
+      - RATE_LIMIT_WINDOW_SECONDS=60
+      - TRUSTED_PROXY_HOPS=1
+# POSTGRES_PASSWORD below is a dev-only placeholder for `kubectl apply -k k8s/base`
+# against a throwaway cluster. Real deployments go through k8s/overlays/prod, which
+# overrides it from an untracked secrets.env (see overlays/prod/secrets.env.example).
+# DATABASE_URL is intentionally not stored here: backend.yaml and the migrate Job
+# assemble it at container start from POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB so
+# the password has a single source of truth.
+secretGenerator:
+  - name: civicpulse-secrets
+    literals:
+      - POSTGRES_USER=civicpulse
+      - POSTGRES_PASSWORD=change_me
+      - POSTGRES_DB=civicpulse
+      - GROQ_API_KEY=
+generatorOptions:
+  disableNameSuffixHash: true
+images:
+  - name: ghcr.io/m-hasaam/civicpulse/backend
+    newTag: dev
+  - name: ghcr.io/m-hasaam/civicpulse/frontend
+    newTag: dev

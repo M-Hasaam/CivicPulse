@@ -1,0 +1,24 @@
+# Not part of `kustomization.yaml`'s resources on purpose: the VerticalPodAutoscaler CRD
+# isn't installed by default on any cluster, including the ephemeral kind cluster cd.yml
+# spins up (which only installs metrics-server). Wiring this into the kustomize build
+# would make `kubectl apply -k` fail there with "no matches for kind VerticalPodAutoscaler".
+#
+# Apply manually, on a local cluster, after installing the VPA components:
+#   kubectl apply -f k8s/base/vpa.yaml
+#
+# Recommender mode only (updateMode: "Off") — records Target/Lower/Upper Bound CPU and
+# memory recommendations without evicting pods. See docs/assignment-brief.md §3.3 for why
+# this stays in recommender mode rather than Auto: running it alongside the CPU-based HPA
+# in Auto mode would have the two fight over the same signal.
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: backend-vpa
+  namespace: civicpulse
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+  updatePolicy:
+    updateMode: "Off"

@@ -1,0 +1,183 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  quality-gate:
+    name: CD quality gate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate Compose files
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker compose --env-file .env.example -f compose.yaml config --quiet
+          docker compose --env-file .env.example -f compose.prod.yaml config --quiet
+
+  manifests:
+    name: Kustomize and kubeconform
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate manifests
+        uses: ./.github/actions/validate-manifests
+
+  publish-and-deploy:
+    name: Publish GHCR images and deploy to kind
+    runs-on: ubuntu-24.04
+    needs: [quality-gate, manifests]
+    env:
+      REGISTRY: ghcr.io
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set image metadata
+        id: meta
+        run: |
+          SHA=$(git rev-parse HEAD)
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "backend=ghcr.io/$OWNER/civicpulse/backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=ghcr.io/$OWNER/civicpulse/frontend" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }}
+            ${{ steps.meta.outputs.backend }}:latest
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.sha }}
+            ${{ steps.meta.outputs.frontend }}:latest
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.12.0
+        with:
+          cluster_name: civicpulse-cd
+
+      - name: Install nginx ingress for kind
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/kind/deploy.yaml
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=180s
+
+      - name: Install metrics-server for kind
+        run: |
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.7.2/components.yaml
+          kubectl patch deployment metrics-server -n kube-system --type=json \
+            -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+          kubectl wait --namespace kube-system \
+            --for=condition=available deployment/metrics-server \
+            --timeout=120s
+
+      - name: Configure GHCR pull secret
+        run: |
+          kubectl create namespace civicpulse --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret docker-registry ghcr-pull \
+            --namespace civicpulse \
+            --docker-server=ghcr.io \
+            --docker-username='${{ github.actor }}' \
+            --docker-password='${{ secrets.GITHUB_TOKEN }}' \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Prepare prod secrets file (CI/kind placeholder only, never real credentials)
+        run: |
+          cat > k8s/overlays/prod/secrets.env <<EOF
+          POSTGRES_PASSWORD=$(openssl rand -hex 24)
+          EOF
+
+      - name: Deploy SHA-tagged images
+        run: |
+          kubectl kustomize k8s/overlays/prod > rendered-prod.yaml
+          kubectl set image --local -f rendered-prod.yaml \
+            backend=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
+            migrate=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
+            frontend=${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.sha }} \
+            -o yaml > rendered-prod-sha.yaml
+          # A Job's pod template is immutable once created, so re-applying "migrate"
+          # with a new image on top of a prior release's completed Job would fail
+          # outright instead of deploying. Delete it first - every release gets a
+          # fresh run. --ignore-not-found covers both "no prior Job" and "no
+          # namespace yet" (first-ever deploy).
+          kubectl delete job/migrate -n civicpulse --ignore-not-found --wait=true
+          kubectl apply -f rendered-prod-sha.yaml
+          kubectl wait --for=condition=complete job/migrate -n civicpulse --timeout=180s
+          kubectl rollout status deployment/backend -n civicpulse --timeout=180s
+          kubectl rollout status deployment/frontend -n civicpulse --timeout=180s
+
+      - name: Smoke test the kind ingress
+        run: |
+          kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 8080:80 >/tmp/ingress-port-forward.log 2>&1 &
+          echo $! > /tmp/ingress-port-forward.pid
+          for i in {1..60}; do
+            if curl --fail --silent -H 'Host: civicpulse.localhost' http://127.0.0.1:8080/ready | grep -q '"status":"ready"'; then
+              break
+            fi
+            sleep 3
+          done
+          curl --fail --silent -H 'Host: civicpulse.localhost' http://127.0.0.1:8080/
+          curl --fail --silent -H 'Host: civicpulse.localhost' http://127.0.0.1:8080/api/stats
+          kill "$(cat /tmp/ingress-port-forward.pid)"
+
+      - name: Verify HPA is reading live metrics
+        run: |
+          for i in $(seq 1 40); do
+            status=$(kubectl get hpa backend -n civicpulse -o jsonpath='{.status.conditions[?(@.type=="ScalingActive")].status}')
+            if [ "$status" = "True" ]; then
+              echo "HPA is actively scaling on metrics-server data"
+              break
+            fi
+            echo "Waiting for metrics-server data to reach the HPA controller ($i/40)..."
+            sleep 5
+          done
+          kubectl get hpa -n civicpulse
+          test "$(kubectl get hpa backend -n civicpulse -o jsonpath='{.status.conditions[?(@.type=="ScalingActive")].status}')" = "True"
+
+      - name: Show cluster state on failure
+        if: failure()
+        run: |
+          kubectl get all,ingress,hpa -n civicpulse -o wide || true
+          kubectl describe pods -n civicpulse || true
+          kubectl logs -n civicpulse -l app.kubernetes.io/name=backend --tail=200 || true
+          kubectl logs -n civicpulse -l app.kubernetes.io/name=frontend --tail=200 || true
