@@ -9,6 +9,8 @@
 #             compromised ollama container (third-party image, pulls weights from the
 #             internet) has no network path to postgres or redis.
 #   models    ollama only: lets it download model weights. Nothing else is on it.
+#   observability  frontend and backend <-> jaeger only, for OTLP trace export. Neither
+#             can reach postgres, redis or ollama over it.
 # The backend is the only service on edge, internal and llm. frontend is on edge only:
 # it can reach the backend and nothing else (`docker compose exec frontend ping postgres`
 # has no route).
@@ -80,6 +82,8 @@ services:
       TRUSTED_PROXY_HOPS: "1"
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_SERVICE_NAME: civicpulse-backend
     # Development only: the host's source is mounted over the image's copy and
     # uvicorn reloads on change. compose.prod.yaml runs exactly what was built
     # and scanned, so it has neither the mount nor --reload.
@@ -89,7 +93,7 @@ services:
               "--reload", "--reload-dir", "/app/app"]
     expose:
       - "8000"  # reachable by the frontend on edge; not published on the host
-    networks: [edge, internal, llm]
+    networks: [edge, internal, llm, observability]
     stop_grace_period: 30s  # longer than uvicorn's own 20s drain, or Docker SIGKILLs first
     depends_on:
       postgres: {condition: service_healthy}
@@ -160,13 +164,27 @@ services:
       migrate: {condition: service_completed_successfully}
     restart: "no"
 
+  # Fully offline tracing sink (bonus). Neither the backend nor frontend depend on it:
+  # if Jaeger isn't running, span export just fails silently in the background.
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"  # http://localhost:16686 - Jaeger UI
+    networks: [observability]
+    deploy:
+      resources:
+        limits: {cpus: "0.5", memory: 256M}
+
   frontend:
     build: ./frontend
     image: civicpulse-frontend:dev
     restart: unless-stopped
     ports:
       - "80:8080"  # http://localhost - nginx (non-root, listens on 8080) serves the built app
-    networks: [edge]
+    networks: [edge, observability]
     depends_on:
       backend: {condition: service_healthy}
     # Healthcheck comes from the image's own HEALTHCHECK (frontend/Dockerfile).
@@ -184,6 +202,8 @@ networks:
     driver: bridge
     internal: true
   models:
+    driver: bridge
+  observability:
     driver: bridge
 
 volumes:

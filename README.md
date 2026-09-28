@@ -159,6 +159,11 @@ with code `0`.
 | App | http://localhost |
 | API docs | http://localhost/docs |
 | Backend readiness | http://localhost/ready |
+| Jaeger (traces) | http://localhost:16686 |
+
+Jaeger comes up by default, receiving traces from both the backend (every request,
+plus the outbound LLM call) and the frontend (submitted through nginx's `/otel/`
+proxy, same-origin - no CORS setup needed). Skip it with `--scale jaeger=0`.
 
 Everyday commands:
 
