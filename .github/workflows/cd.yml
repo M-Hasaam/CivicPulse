@@ -253,10 +253,13 @@ jobs:
       - name: Deploy the Argo CD Application
         run: |
           kubectl apply -f k8s/argocd/application.yaml
-          for i in $(seq 1 40); do
+          # 60 x 10s: postgres ready -> migrate Job -> backend/frontend rollout
+          # -> HPA reading metrics-server is a real sequential chain, not a
+          # single wait - give it more room than a single-resource wait needs.
+          for i in $(seq 1 60); do
             health=$(kubectl get application civicpulse -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "")
             sync=$(kubectl get application civicpulse -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "")
-            echo "health=$health sync=$sync ($i/40)"
+            echo "health=$health sync=$sync ($i/60)"
             if [ "$health" = "Healthy" ] && [ "$sync" = "Synced" ]; then
               break
             fi
