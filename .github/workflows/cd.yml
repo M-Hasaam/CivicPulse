@@ -162,8 +162,18 @@ jobs:
         run: |
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.13.2/manifests/install.yaml
+          # This runner's kind node has ~2 vCPU total, shared across the whole
+          # app stack (backend/frontend/postgres/redis/prometheus/grafana) plus
+          # Argo CD - a full default install was starving postgres of enough
+          # CPU request headroom to even get scheduled. We only ever query the
+          # Application CRD via kubectl, never the UI/API/SSO/notifications, so
+          # scale those components to zero rather than wait for pods we never use.
+          kubectl -n argocd scale deployment argocd-server argocd-dex-server \
+            argocd-notifications-controller argocd-applicationset-controller \
+            --replicas=0
           kubectl wait --namespace argocd \
-            --for=condition=available deployment --all --timeout=300s
+            --for=condition=available deployment/argocd-repo-server deployment/argocd-redis \
+            --timeout=300s
           kubectl rollout status statefulset/argocd-application-controller -n argocd --timeout=300s
 
       # This repository is private, so the Application's git source needs
