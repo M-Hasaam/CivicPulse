@@ -54,3 +54,7 @@ Check that the Kubernetes instructions explain waiting for migration completion 
 
 Confirm that the [runbook](RUNBOOK.md) is easy to find from the main README when a reader needs operational procedures.
 
+## Rollback guidance
+
+Review the runbook explanation of immediate rollout undo and redeployment of a known-good image SHA.
+
