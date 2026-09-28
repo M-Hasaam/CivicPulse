@@ -26,3 +26,7 @@ Check that the rules and Ollama startup paths are easy to follow independently i
 
 Review the description of migration and seed jobs so readers know how one-shot jobs differ from running services.
 
+## Service access
+
+Check that the README distinguishes the app address, API documentation address, and readiness endpoint.
+
