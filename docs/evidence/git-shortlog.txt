@@ -1,0 +1,9 @@
+Command: git shortlog -sn --all
+Date: 2026-09-28
+(uses .mailmap to unify Burhan's two committer identities)
+
+   117	Muhammad Hasaam
+    69	Burhan Ahmed
+
+Total commits: 186
+Conventional-prefixed commits: 149

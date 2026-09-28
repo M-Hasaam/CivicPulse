@@ -1,0 +1,24 @@
+Command: git branch -a
+Date: 2026-09-28
+
+  dev
+* docs/evidence-capture
+  docs/readme-polish
++ feat/bonus-features
+  fix/dashboard-fetch-race-condition
+  fix/k8s-migrate-job-reliability
+  fix/keyboard-accessible-dropdowns
+  fix/rate-limit-proxy-hops-default
+  fix/stale-openapi-schema
+  main
+  remotes/origin/HEAD -> origin/dev
+  remotes/origin/dev
+  remotes/origin/docs/evidence-capture
+  remotes/origin/docs/readme-polish
+  remotes/origin/feat/bonus-features
+  remotes/origin/fix/dashboard-fetch-race-condition
+  remotes/origin/fix/k8s-migrate-job-reliability
+  remotes/origin/fix/keyboard-accessible-dropdowns
+  remotes/origin/fix/rate-limit-proxy-hops-default
+  remotes/origin/fix/stale-openapi-schema
+  remotes/origin/main

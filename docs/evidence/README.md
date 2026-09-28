@@ -1,51 +1,145 @@
 # Evidence index
 
-What's in this folder, which rubric line it supports, and what's still missing.
-Kept honest on purpose: an empty row here is a to-do, not an oversight to hide.
+Every rubric line from the assignment brief, what evidence backs it, and whether that evidence
+is a screenshot/log in this folder or a pointer to the actual code/test/workflow that proves it.
+Kept honest on purpose: an empty or 🔴 row here is a to-do, not an oversight to hide.
 
-## A · Collaboration and version control
-
-| Rubric line | Marks | Evidence | Status |
-| --- | --- | --- | --- |
-| `main` protected: no direct push, PR required, CI required, ≥ 1 approval | 3 | `branch-protection-1.png` (ruleset active, empty bypass list, targets `main`)<br>`branch-protection-2-rules.png` (require PR, require status checks, block force pushes, restrict deletions)<br>`branch-protection-3-required-approvals.png` (Required approvals: **1**)<br>`branch-protection-4-pr33-checks-before-required.png` (PR #33 green, before the required-checks list was configured)<br>`branch-protection-5-required-status-checks.png` (ruleset settings: all 7 CI/CD checks wired up as **required**)<br>`branch-protection-6-pr33-checks-marked-required.png` (PR #33 green again, each check now labeled **Required**)<br>`branch-protection-7-pr36-review-required-blocked.png` (PR #36 into `main`: 14/14 checks green, merge still blocked purely on "Review required" — the ≥1-approval gate working live, distinct from the CI-check gate) | ✅ Complete |
-| One deliberate merge conflict, resolved, with markers/resolution/merge evidence and 2–4 sentences on why that version won | 3 | `merge-conflict-1..3-markers-*.png` (conflict markers in `.env.example`, `pyproject.toml`, `config.py`)<br>`merge-conflict-4-resolved-config.png`<br>`merge-conflict-5-merge-commit.png`<br>`MERGE-CONFLICT.md` (what conflicted, reproducible `git log`/`git diff-tree` output, why the resolution won) | ✅ Complete |
-
-## G · Docker and Compose
+## A · Collaboration and version control — 15
 
 | Rubric line | Marks | Evidence | Status |
 | --- | --- | --- | --- |
-| Full Compose stack runs from one command | (supports Docker/Compose demo and README proof) | `compose-stack-healthy.png` (`frontend`, `backend`, `postgres`, `redis`, `ollama` healthy; `migrate`, `seed`, `ollama-pull` exited 0)<br>`compose-api-stats-200.png` (`GET /api/stats` through the frontend proxy returns 200)<br>`compose-api-complaints-200.png` (`GET /api/complaints` returns seeded data)<br>`compose-api-create-complaint-201.png` (`POST /api/complaints` creates a row through the Compose stack)<br>`compose-ollama-model-list.png` (`llama3.2:1b` loaded in Ollama) | ✅ Screenshot evidence captured; still include the live run in the final demo video |
-| Frontend provably cannot reach the database | 4 | `compose-frontend-cannot-reach-postgres.png` (`docker compose exec frontend wget -T 3 -O- http://postgres:5432` fails with `bad address`)<br>Also verified live earlier via `docker run --network civicpulse_edge ... nc -z postgres 5432` (fails to resolve) — see the commit messages on `feature/docker-backend` (PRs #25, #28) | 🟡 Screenshot captured — still record this in the **video** demo because the brief asks for a live demonstration |
-| `.dockerignore` context sizes before/after | 2 | Reported in the `build(backend): multi-stage non-root Dockerfile` commit message (184.2 MB → 128 kB) | 🟡 In a commit message, not this folder — fine as-is unless the write-up wants it duplicated here |
+| `main` protected: no direct push, PR required, CI required, ≥ 1 approval; screenshot in `docs/evidence/` | 3 | [branch-protection-1.png](branch-protection-1.png) (ruleset active, empty bypass list, targets `main`)<br>[branch-protection-2-rules.png](branch-protection-2-rules.png) (require PR, require status checks, block force pushes, restrict deletions)<br>[branch-protection-3-required-approvals.png](branch-protection-3-required-approvals.png) (Required approvals: **1**)<br>[branch-protection-4-pr33-checks-before-required.png](branch-protection-4-pr33-checks-before-required.png)<br>[branch-protection-5-required-status-checks.png](branch-protection-5-required-status-checks.png) (all 7 CI/CD checks wired up as **required**)<br>[branch-protection-6-pr33-checks-marked-required.png](branch-protection-6-pr33-checks-marked-required.png)<br>[branch-protection-7-pr36-review-required-blocked.png](branch-protection-7-pr36-review-required-blocked.png) (PR #36: 14/14 checks green, merge still blocked purely on "Review required") | ✅ Complete |
+| Two-branch model with `dev` plus feature branches; no work committed directly to `main` | 2 | [git-branches.txt](git-branches.txt) (`git branch -a`: `dev`, `main`, and `feature/*`/`fix/*`/`docs/*` branches)<br>[../../scripts/check_submission.py](../../scripts/check_submission.py) (`check_no_direct_pushes_to_main` — every commit on `main` is a merge or the root commit; currently passing) | ✅ Complete |
+| ≥ 5 merged PRs, each linked to an Issue, each with a substantive review comment from your partner | 4 | [pr-issue-review-1-pr4.png](pr-issue-review-1-pr4.png) (PR #4 closes #13; burhan-15: "Ran every step on a clean checkout... Verified locally, all steps work as documented.")<br>[pr-issue-review-2-pr10.png](pr-issue-review-2-pr10.png) (PR #10 closes #7; burhan-15: "Re-tested the latest head... migrate OK, seed 32 inserted then 0 on rerun...")<br>[pr-issue-review-3-pr16.png](pr-issue-review-3-pr16.png) (PR #16 closes #11; M-Hasaam requested changes, then approved after fixes — a real back-and-forth)<br>[pr-issue-review-4-pr18.png](pr-issue-review-4-pr18.png) (PR #18 closes #17; burhan-15: "Reviewed the code and ran it on a clean checkout (Windows, Python 3.13.5)...")<br>[pr-issue-review-5-pr20.png](pr-issue-review-5-pr20.png) (PR #20 closes #19; burhan-15: "Set this up on a clean checkout and ran it end-to-end against real Postgres 16, Redis 7 and Groq...") | ✅ Complete |
+| ≥ 35 commits, conventional prefixes (`feat:`, `fix:`, `docs:`…), neither partner below 35% by `git shortlog -sn` | 3 | [git-shortlog.txt](git-shortlog.txt) (`git shortlog -sn --all`: Muhammad Hasaam 117, Burhan Ahmed 69 — 63%/37%, both above 35%; 186 total commits, 149 conventional-prefixed) | ✅ Complete |
+| One deliberate merge conflict on real code, resolved, with markers/resolution/merge evidence and 2–4 sentences on why that version won | 3 | [merge-conflict-1-markers-env-example.png](merge-conflict-1-markers-env-example.png)<br>[merge-conflict-2-markers-pyproject.png](merge-conflict-2-markers-pyproject.png)<br>[merge-conflict-3-markers-config.png](merge-conflict-3-markers-config.png)<br>[merge-conflict-4-resolved-config.png](merge-conflict-4-resolved-config.png)<br>[merge-conflict-5-merge-commit.png](merge-conflict-5-merge-commit.png)<br>[MERGE-CONFLICT.md](MERGE-CONFLICT.md) (what conflicted, reproducible `git log`/`git diff-tree` output, why the resolution won) | ✅ Complete |
 
-## D · Data layer
-
-| Rubric line | Marks | Evidence | Status |
-| --- | --- | --- | --- |
-| `docker compose down` / `up` preserves every row; same for deleting the Postgres pod on K8s | (persistence contract, "you will demonstrate both") | `compose-api-create-complaint-201.png` proves a row can be created through the running Compose stack<br>Verified live multiple times earlier (a complaint survives `down`/`up`; seed reports "already present" on rerun) — see commit messages | ⚪ Compose persistence still belongs in the **video** demo; the K8s-pod-deletion half can't be shown until `feature/k8s` exists |
-
-## H · Kubernetes
+## B · Frontend — 18
 
 | Rubric line | Marks | Evidence | Status |
 | --- | --- | --- | --- |
-| `kubectl get hpa -w` capture + replicas-vs-load chart | 4 | — | 🔴 Not started — needs `feature/k8s` and a load test |
-| VPA recommendations committed, requests updated in response | 3 | — | 🔴 Not started — needs `feature/k8s` |
+| Submit view: validation, honest loading state, renders category, priority, AI summary and provider | 5 | [../../frontend/src/pages/SubmitPage.tsx](../../frontend/src/pages/SubmitPage.tsx) (client-side validation, `submitting` state driven by the real request, result panel rendering category/priority/summary/provider)<br>[../../frontend/src/pages/__tests__/SubmitPage.test.tsx](../../frontend/src/pages/__tests__/SubmitPage.test.tsx) (7 tests, incl. "renders an honest loading state while the AI call is in flight") | ✅ Complete — no dedicated screenshot yet; add one alongside the demo video |
+| Dashboard: pagination, filters, status transitions, server's 409 message surfaced verbatim | 5 | [localhost_dashboard.png](localhost_dashboard.png) (Dashboard running live)<br>[../../frontend/src/pages/DashboardPage.tsx](../../frontend/src/pages/DashboardPage.tsx) (pagination, filters, `ApiConflictError` message shown verbatim)<br>[../../frontend/src/pages/__tests__/DashboardPage.test.tsx](../../frontend/src/pages/__tests__/DashboardPage.test.tsx) (8 tests, incl. "surfaces the server's 409 message verbatim") | ✅ Complete |
+| Stats view rendering aggregates and cache-hit state from `X-Cache` | 3 | [localhost_stats.png](localhost_stats.png) (Stats view running live)<br>[../../frontend/src/pages/StatsPage.tsx](../../frontend/src/pages/StatsPage.tsx) (`X-Cache` header read in `client.ts`, rendered via `CacheBadge`)<br>[../../frontend/src/pages/__tests__/StatsPage.test.tsx](../../frontend/src/pages/__tests__/StatsPage.test.tsx) (HIT/MISS badge tests) | ✅ Complete |
+| Runtime configuration — no baked-in API URL; one image runs in any environment | 3 | [../../frontend/src/api/client.ts](../../frontend/src/api/client.ts) (`baseUrl: window.location.origin`, no `VITE_API_URL`/`REACT_APP_API_URL` anywhere)<br>[../../frontend/nginx.conf](../../frontend/nginx.conf) (reverse-proxies `/api/` to `backend:8000` at container runtime)<br>[../../docs/adr/0002-frontend-runtime-config.md](../../docs/adr/0002-frontend-runtime-config.md) | ✅ Complete |
+| ≥ 5 meaningful component tests passing in CI | 2 | [../../frontend/src/pages/__tests__/](../../frontend/src/pages/__tests__/) and [../../frontend/src/api/__tests__/client.test.ts](../../frontend/src/api/__tests__/client.test.ts) (4 files, ~27 `it(...)` cases)<br>[../../.github/workflows/ci.yml](../../.github/workflows/ci.yml) (`frontend` job runs `npm test`) | ✅ Complete |
 
-## I · CI/CD
-
-| Rubric line | Marks | Evidence | Status |
-| --- | --- | --- | --- |
-| Evidence of a red pipeline blocking a merge, then green | 1 | `ci-pipeline-1-pr33-red-in-progress.png` (PR #33, backend lint check failing, other checks still running)<br>`ci-pipeline-2-pr33-red-blocked.png` (backend lint failed, 6 others passed, merge button disabled)<br>`ci-pipeline-3-pr33-red-blocked-tooltip.png` (same state, "Merging is blocked due to failing merge requirements" tooltip visible)<br>`ci-pipeline-4-pr33-green-unblocked.png` (`test: introduce a deliberate lint failure...` commit `3b87b37` failing, its `Revert "test: ..."` commit `4d0591a` fixing it, all 7 checks green, merge enabled — same PR) | ✅ Complete |
-
-## J · Documentation
+## C · Backend — 25
 
 | Rubric line | Marks | Evidence | Status |
 | --- | --- | --- | --- |
-| README screenshots | (part of README's 4) | `readme-frontend-ui.png` (frontend loaded at `http://localhost/`)<br>`compose-stack-healthy.png` (Compose services healthy/exited 0)<br>`compose-api-stats-200.png` and `compose-api-complaints-200.png` (API examples for README/run proof) | 🟡 Started — add final README screenshots after CI/CD and K8s are present |
-| Demo video ≤ 5 min, both partners speaking | 3 | — | 🔴 Not started — the last thing to record, once Compose, K8s and CI/CD all work |
+| All ten endpoints to contract, correct status codes, field-level validation errors | 7 | [../../backend/app/routes/complaints.py](../../backend/app/routes/complaints.py), [../../backend/app/routes/stats.py](../../backend/app/routes/stats.py), [../../backend/app/routes/health.py](../../backend/app/routes/health.py)<br>[../../backend/app/routes/errors.py](../../backend/app/routes/errors.py) (custom 400/404/409/429/503 shaping)<br>[../../backend/tests/test_api.py](../../backend/tests/test_api.py) | ✅ Complete |
+| Four-layer separation: no SQL outside repositories, no business rules in routes | 4 | [../../backend/app/routes/](../../backend/app/routes/) · [../../backend/app/services/](../../backend/app/services/) · [../../backend/app/repositories/](../../backend/app/repositories/) (each with a docstring stating its own boundary) | ✅ Complete |
+| Status state machine as an explicit transition table; invalid transitions 409 | 3 | [../../backend/app/services/state_machine.py](../../backend/app/services/state_machine.py) (`TRANSITIONS` table)<br>[../../backend/tests/test_state_machine.py](../../backend/tests/test_state_machine.py) (parametrized over every transition pair) | ✅ Complete |
+| `/health` and `/ready` correctly distinguished; `/health` does not touch the database | 3 | [../../backend/app/routes/health.py](../../backend/app/routes/health.py)<br>[../../backend/tests/test_health.py](../../backend/tests/test_health.py) (`/health` survives Postgres being unreachable; `/ready` 503 cases) | ✅ Complete |
+| Structured JSON logging to stdout with a propagated `request_id` | 3 | [../../backend/app/logging_config.py](../../backend/app/logging_config.py) (`JsonFormatter`, `request_id_var`)<br>[../../backend/app/main.py](../../backend/app/main.py) (`request_context` middleware) | ✅ Complete |
+| SIGTERM handled: in-flight requests drain before exit | 2 | [../../backend/Dockerfile](../../backend/Dockerfile) (`--timeout-graceful-shutdown 20`, exec-form `CMD`)<br>[../RUNBOOK.md](../RUNBOOK.md#graceful-shutdown-sigterm) (why there's no app-level signal handler)<br>[../../.github/workflows/compose-smoke.yml](../../.github/workflows/compose-smoke.yml) ("SIGTERM drains an in-flight request" step — real container, real signal, runs on every PR) | ✅ Complete |
+| ≥ 14 backend tests, unit and integration, deterministic, coverage ≥ 65% | 3 | [backend-coverage.txt](backend-coverage.txt) (144 tests, 92% coverage, `fail_under = 65` gate in [../../backend/pyproject.toml](../../backend/pyproject.toml))<br>[../../.github/workflows/ci.yml](../../.github/workflows/ci.yml) (`pytest --cov=app --cov-report=term-missing`) | ✅ Complete |
+
+## D · Data layer — 12
+
+| Rubric line | Marks | Evidence | Status |
+| --- | --- | --- | --- |
+| Alembic migrations; zero schema DDL in application startup code | 4 | [../../backend/alembic/versions/0001_initial_complaints_schema.py](../../backend/alembic/versions/0001_initial_complaints_schema.py)<br>[../../backend/app/repositories/database.py](../../backend/app/repositories/database.py) (no `create_all`, no raw `CREATE TABLE`) | ✅ Complete |
+| Schema complete including `triaged_by`, `ai_summary`, `triage_latency_ms`, `timestamptz` | 3 | [../../backend/app/repositories/models.py](../../backend/app/repositories/models.py) (all four fields, `DateTime(timezone=True)`) | ✅ Complete |
+| Two indexes, each justified by a named query in your notes | 2 | [../../backend/app/repositories/models.py](../../backend/app/repositories/models.py) (`ix_complaints_status_priority`, `ix_complaints_created_at`, each with an inline comment naming the query it serves) | ✅ Complete |
+| Idempotent seed of ≥ 30 realistic complaints; running it twice changes nothing | 3 | [../../backend/app/seed.py](../../backend/app/seed.py) (32 complaints, `get_by_text` dedupe check before insert) | ✅ Complete |
+| *(persistence contract: `docker compose down`/`up` and deleting the Postgres pod on K8s both preserve every row)* | — | [compose-api-create-complaint-201.png](compose-api-create-complaint-201.png)<br>[k8s-persistence-1-postgres-pod-deletion.txt](k8s-persistence-1-postgres-pod-deletion.txt) (deletes `postgres-0` outright, StatefulSet recreates it, same row re-fetched with identical `created_at`) | ✅ Complete — Compose half is still worth re-showing live in the **video** |
+
+## E · Cache layer — 10
+
+| Rubric line | Marks | Evidence | Status |
+| --- | --- | --- | --- |
+| `/api/stats` read-through cache, 30 s TTL, correct `X-Cache` header | 3 | [../../backend/app/cache/stats_cache.py](../../backend/app/cache/stats_cache.py) (`STATS_TTL_SECONDS = 30`)<br>[localhost_stats.png](localhost_stats.png), [compose-api-stats-200.png](compose-api-stats-200.png)<br>[../../backend/tests/test_cache.py](../../backend/tests/test_cache.py) | ✅ Complete |
+| Cache invalidated on write, not left to expire | 2 | [../../backend/app/services/complaint_service.py](../../backend/app/services/complaint_service.py) (`invalidate_stats` called after create/status-change commits) | ✅ Complete |
+| Distributed Redis rate limiter on `POST /api/complaints`, 429 with `Retry-After` | 4 | [../../backend/app/cache/rate_limiter.py](../../backend/app/cache/rate_limiter.py)<br>[../../backend/tests/test_rate_limiter.py](../../backend/tests/test_rate_limiter.py) (429 + `Retry-After` header, anti-spoofing on `X-Forwarded-For`) | ✅ Complete |
+| Redis AOF on a named volume, with your justification written down | 1 | [../../compose.yaml](../../compose.yaml) (`--appendonly yes`, `redisdata` volume comment: "cached stats, triage results and rate-limit counters survive a restart") | ✅ Complete |
+
+## F · AI layer — 25
+
+| Rubric line | Marks | Evidence | Status |
+| --- | --- | --- | --- |
+| `TriageProvider` interface with ≥ 3 working implementations selected by environment variable | 5 | [../../backend/app/providers/triage/base.py](../../backend/app/providers/triage/base.py) (`Protocol`)<br>[../../backend/app/providers/triage/factory.py](../../backend/app/providers/triage/factory.py) (`llm`, `ollama`, `rules`, `simulated` — 4 implementations, selected by `TRIAGE_PROVIDER`) | ✅ Complete |
+| Structured output requested and validated against a Pydantic schema; malformed output rejected safely | 5 | [../../backend/app/providers/triage/base.py](../../backend/app/providers/triage/base.py) (`TriageResult`, `extra="forbid"`, `parse_triage_output`)<br>[../../backend/tests/test_api.py](../../backend/tests/test_api.py) (malformed model output falls back, still 201) | ✅ Complete |
+| Timeout, single jittered retry on retryable errors only, fallback to rules, `triaged_by` recorded | 6 | [../../backend/app/providers/triage/http.py](../../backend/app/providers/triage/http.py) (`MAX_ATTEMPTS = 2`, retries only 429/5xx/timeout)<br>[../../backend/app/services/triage_service.py](../../backend/app/services/triage_service.py) (fallback to `RuleBasedTriage`, `triaged_by` set to `rules:fallback`) | ✅ Complete |
+| Content-hash caching of triage results with a measured, reported hit rate | 3 | [../../backend/app/cache/triage_cache.py](../../backend/app/cache/triage_cache.py) (SHA-256 of normalized text, 24 h TTL)<br>[../../docs/TRIAGE.md](../../docs/TRIAGE.md) (measured hit rate reported) | ✅ Complete |
+| Prompt-injection guardrail plus a test that submits an injection attempt | 3 | [../../backend/app/providers/triage/llm.py](../../backend/app/providers/triage/llm.py) (`<complaint>` tags, angle-bracket escaping, system prompt)<br>[../../backend/tests/test_api.py](../../backend/tests/test_api.py) (`test_prompt_injection_cannot_choose_the_category`) | ✅ Complete |
+| `triage_latency_ms` recorded and surfaced through `/api/meta/providers` | 2 | [../../backend/app/services/triage_service.py](../../backend/app/services/triage_service.py) (`TriageOutcome.latency_ms`)<br>[../../backend/app/routes/stats.py](../../backend/app/routes/stats.py) (`GET /api/meta/providers`) | ✅ Complete |
+| PII/data-governance ADR: what leaves your machine, to whom, and why that is acceptable | 1 | [../../docs/adr/0004-pii-and-data-governance.md](../../docs/adr/0004-pii-and-data-governance.md) | ✅ Complete |
+
+## G · Docker and Compose — 15
+
+| Rubric line | Marks | Evidence | Status |
+| --- | --- | --- | --- |
+| Both images multi-stage, pinned base, non-root `USER`, exec-form `CMD`, cache-correct layer order | 4 | [../../backend/Dockerfile](../../backend/Dockerfile) · [../../frontend/Dockerfile](../../frontend/Dockerfile) | ✅ Complete |
+| `.dockerignore` per build context, with before/after context sizes reported | 2 | [docker-image-sizes.md](docker-image-sizes.md) (backend: 184.2 MB → 128 kB, re-verified today at 97.03 kB, image 324 MB; frontend: 190.34 MB → 1.45 kB, image 112 MB, with a note on why it exceeds the ~60 MB guidance) | ✅ Complete |
+| Two networks with `internal: true`; frontend provably cannot reach the database | 4 | [compose-frontend-cannot-reach-postgres.png](compose-frontend-cannot-reach-postgres.png)<br>[../../compose.yaml](../../compose.yaml) (`internal`/`llm` networks marked `internal: true`, frontend only on `edge`) | ✅ Complete — network isolation screenshot captured |
+| Three named volumes, each justified; dev bind mount present and absent from prod | 2 | [../../compose.yaml](../../compose.yaml) (4 named volumes, each with a justification comment; `./backend/app:/app/app:ro` bind mount)<br>[../../compose.prod.yaml](../../compose.prod.yaml) (no bind mount) | ✅ Complete |
+| Healthchecks on all services with `depends_on: condition: service_healthy` | 2 | [../../compose.yaml](../../compose.yaml) · [../../compose.prod.yaml](../../compose.prod.yaml) | ✅ Complete |
+| `compose.prod.yaml` uses `image: ${IMAGE_TAG}`, no `build:`, no published DB or cache port | 1 | [../../compose.prod.yaml](../../compose.prod.yaml)<br>[../../scripts/check_submission.py](../../scripts/check_submission.py) (`check_no_published_db_cache_ports`, `check_pinned_base_images` — both passing) | ✅ Complete |
+
+## H · Kubernetes — 20
+
+| Rubric line | Marks | Evidence | Status |
+| --- | --- | --- | --- |
+| Namespace, Deployments, StatefulSet + PVC for Postgres, ClusterIP Services, Ingress routing `/` and `/api` | 5 | [../../k8s/base/namespace.yaml](../../k8s/base/namespace.yaml) · [../../k8s/base/backend.yaml](../../k8s/base/backend.yaml) · [../../k8s/base/frontend.yaml](../../k8s/base/frontend.yaml) · [../../k8s/base/postgres.yaml](../../k8s/base/postgres.yaml) (StatefulSet + `volumeClaimTemplates`) · [../../k8s/base/ingress.yaml](../../k8s/base/ingress.yaml) | 🟡 Complete, with a documented nuance: `/api` is routed by nginx inside the frontend pod (mirroring Compose), not a second Ingress path — see [../adr/0002-frontend-runtime-config.md](../adr/0002-frontend-runtime-config.md) |
+| ConfigMap and Secret separated; committed manifests carry placeholders only | 2 | [../../k8s/base/kustomization.yaml](../../k8s/base/kustomization.yaml) (`configMapGenerator`/`secretGenerator`, `POSTGRES_PASSWORD=change_me`, `GROQ_API_KEY=` empty)<br>[../../scripts/check_submission.py](../../scripts/check_submission.py) (`check_no_api_key_in_k8s_manifests` — passing) | ✅ Complete |
+| All three probes correct: liveness independent of the database, readiness dependent on it | 4 | [../../k8s/base/backend.yaml](../../k8s/base/backend.yaml) (`livenessProbe` → `/health`, `readinessProbe` → `/ready`, `startupProbe` → `/health`) | ✅ Complete |
+| `resources.requests` and `limits` set on every container | 2 | [../../k8s/base/backend.yaml](../../k8s/base/backend.yaml), [../../k8s/base/frontend.yaml](../../k8s/base/frontend.yaml), [../../k8s/base/postgres.yaml](../../k8s/base/postgres.yaml), [../../k8s/base/redis.yaml](../../k8s/base/redis.yaml) | ✅ Complete |
+| HPA v2 with tuned behavior, plus captured `kubectl get hpa -w` output and a replicas-vs-load chart from a real load test | 4 | [hpa-1-replicas-vs-load-chart.png](hpa-1-replicas-vs-load-chart.png)<br>[hpa-2-kubectl-get-hpa-watch-output.txt](hpa-2-kubectl-get-hpa-watch-output.txt)<br>[hpa-3-k6-load-test-summary.txt](hpa-3-k6-load-test-summary.txt) (44,478 requests, 0% failed)<br>[hpa-4-scaling-events.txt](hpa-4-scaling-events.txt)<br>[../../k8s/base/hpa.yaml](../../k8s/base/hpa.yaml) | ✅ Complete |
+| VPA in recommender mode, recommendations committed, requests updated in response, HPA/VPA conflict explained | 3 | [vpa-1-describe-recommendation-before.txt](vpa-1-describe-recommendation-before.txt)<br>[vpa-2-hpa-after-fix-chart.png](vpa-2-hpa-after-fix-chart.png)<br>[vpa-3-scaling-events-before-and-after.txt](vpa-3-scaling-events-before-and-after.txt)<br>[vpa-4-kubectl-get-hpa-watch-after-fix.txt](vpa-4-kubectl-get-hpa-watch-after-fix.txt)<br>[../../k8s/base/vpa.yaml](../../k8s/base/vpa.yaml) (`updateMode: "Off"`, comment explaining why) | ✅ Complete |
+
+## I · CI/CD — 20
+
+| Rubric line | Marks | Evidence | Status |
+| --- | --- | --- | --- |
+| `ci.yml` running lint, type check, backend and frontend tests on every PR, configured as required checks | 4 | [../../.github/workflows/ci.yml](../../.github/workflows/ci.yml)<br>[branch-protection-5-required-status-checks.png](branch-protection-5-required-status-checks.png) | ✅ Complete |
+| Compose integration smoke job asserting a real request path end to end | 3 | [../../.github/workflows/compose-smoke.yml](../../.github/workflows/compose-smoke.yml) (full stack up, `/ready`, `GET`/`POST /api/complaints`, `X-Cache` header check, SIGTERM-drain check) | ✅ Complete |
+| Trivy image scan and kubeconform manifest validation in CI | 3 | [../../.github/workflows/security.yml](../../.github/workflows/security.yml) (`aquasec/trivy`, HIGH/CRITICAL, fails on unfixed CVEs)<br>[../../.github/actions/validate-manifests/action.yml](../../.github/actions/validate-manifests/action.yml) (`kubeconform -strict`) | ✅ Complete |
+| `cd.yml` with `needs:` gating publish, images pushed to GHCR tagged by commit SHA | 4 | [../../.github/workflows/cd.yml](../../.github/workflows/cd.yml) (`needs: [quality-gate, manifests]`; tags `${{ steps.meta.outputs.sha }}`)<br>[../../scripts/check_submission.py](../../scripts/check_submission.py) (`check_deploy_gated_by_needs`, `check_no_latest_deployed` — both passing) | ✅ Complete |
+| Kubernetes deploy job on an ephemeral cluster, waiting on rollout status and smoke-testing the Ingress | 3 | [../../.github/workflows/cd.yml](../../.github/workflows/cd.yml) (kind cluster, `rollout status`, Ingress curl, HPA metrics check) | ✅ Complete |
+| Secrets from GitHub Secrets with a scoped token and a least-privilege `permissions:` block | 2 | [../../.github/workflows/ci.yml](../../.github/workflows/ci.yml), [cd.yml](../../.github/workflows/cd.yml), [security.yml](../../.github/workflows/security.yml) (each declares its own top-level `permissions:`; only `secrets.GITHUB_TOKEN` used) | ✅ Complete |
+| Evidence of a red pipeline blocking a merge, then green | 1 | [ci-pipeline-1-pr33-red-in-progress.png](ci-pipeline-1-pr33-red-in-progress.png)<br>[ci-pipeline-2-pr33-red-blocked.png](ci-pipeline-2-pr33-red-blocked.png)<br>[ci-pipeline-3-pr33-red-blocked-tooltip.png](ci-pipeline-3-pr33-red-blocked-tooltip.png)<br>[ci-pipeline-4-pr33-green-unblocked.png](ci-pipeline-4-pr33-green-unblocked.png) | ✅ Complete |
+
+## J · Documentation, portfolio and reflection — 15
+
+| Rubric line | Marks | Evidence | Status |
+| --- | --- | --- | --- |
+| `README.md`: problem statement, badges, Mermaid architecture diagram, working one-command quickstart, API table, screenshots | 4 | [../../README.md](../../README.md)<br>[readme-frontend-ui.png](readme-frontend-ui.png), [compose-stack-healthy.png](compose-stack-healthy.png), [compose-api-stats-200.png](compose-api-stats-200.png), [compose-api-complaints-200.png](compose-api-complaints-200.png), [localhost_dashboard.png](localhost_dashboard.png), [localhost_stats.png](localhost_stats.png) | ✅ Complete |
+| Four ADRs: provider interface; frontend runtime config; deploy-by-SHA; PII/data governance | 4 | [../adr/0001-provider-interface.md](../adr/0001-provider-interface.md)<br>[../adr/0002-frontend-runtime-config.md](../adr/0002-frontend-runtime-config.md)<br>[../adr/0003-deploy-by-sha.md](../adr/0003-deploy-by-sha.md)<br>[../adr/0004-pii-and-data-governance.md](../adr/0004-pii-and-data-governance.md) | ✅ Complete |
+| `docs/RUNBOOK.md`: how to deploy, roll back, read logs, and what to do when triage starts failing | 2 | [../RUNBOOK.md](../RUNBOOK.md) | ✅ Complete |
+| Demo video ≤ 5 minutes, both partners speaking, covering clean clone → running system, AI triage, fallback, network isolation failing, HPA scaling, rollback | 3 | [demo.mp4 on the `Video` branch](https://github.com/M-Hasaam/CivicPulse/blob/Video/demo.mp4)<br>Supporting material: [compose-stack-healthy.png](compose-stack-healthy.png) (running stack)<br>[compose-frontend-cannot-reach-postgres.png](compose-frontend-cannot-reach-postgres.png) (network isolation)<br>[hpa-1-replicas-vs-load-chart.png](hpa-1-replicas-vs-load-chart.png), [hpa-2-kubectl-get-hpa-watch-output.txt](hpa-2-kubectl-get-hpa-watch-output.txt) (HPA scaling) | ✅ Complete |
+| `docs/ENGINEERING-NOTES.md` answering all eight questions in §5.2 with file-and-line references | 2 | [../ENGINEERING-NOTES.md](../ENGINEERING-NOTES.md) | ✅ Complete |
+
+## Bonus — capped at +15
+
+Pulled in from `feat/bonus-features` (the branch where this bonus work actually landed) once its
+Grafana and OpenTelemetry screenshots existed — this table reflects that branch's real state, not
+a guess from `dev`. See that branch's commit history for the detailed diagnosis behind each item,
+including the GitOps attempt and why it was dropped.
+
+| Rubric line | Marks | Evidence | Status |
+| --- | --- | --- | --- |
+| Prometheus scraping `/metrics` + a Grafana dashboard, screenshot committed | +2 | [bonus-grafana-dashboard.png](bonus-grafana-dashboard.png) (4 panels: HTTP request rate, HTTP request latency p95, triage latency p95 by provider, triage fallbacks — the fallbacks panel reads "No data" because zero fallbacks occurred in that window, not because the panel is broken) | ✅ Complete |
+| OpenTelemetry tracing across frontend → backend → LLM call | +2 | [bonus-otel-jaeger-trace-search-frontend.png](bonus-otel-jaeger-trace-search-frontend.png) (Jaeger search results: `civicpulse-frontend` service, two `POST` traces each spanning `civicpulse-backend (25)` + `civicpulse-frontend (1)` — 26 spans total) | 🟡 Proves the trace exists and crosses both services — still missing a screenshot of one trace **opened** (the expanded span waterfall). See "How to (re)generate" below. |
+| Zero-downtime rolling update demonstrated under live load with zero failed requests | +4 | [hpa-3-k6-load-test-summary.txt](hpa-3-k6-load-test-summary.txt) (44,478 requests, 0% failed)<br>[hpa-4-scaling-events.txt](hpa-4-scaling-events.txt)<br>[../../k8s/base/backend.yaml](../../k8s/base/backend.yaml) · [../../k8s/base/frontend.yaml](../../k8s/base/frontend.yaml) (`maxUnavailable: 0`, `maxSurge: 1`) | 🟡 Mid-CI-verification, not unstarted — only produced by a real `cd.yml` run (needs a pushed branch + triggered workflow, not reproducible locally). The workflow asserts `http_req_failed == 0` and uploads `zero-downtime-evidence` as a workflow artifact; download it and drop both files here once a run succeeds. |
+| Deploy by image digest rather than tag, with Cosign signing and verification in CI | +3 | [../../.github/workflows/cd.yml](../../.github/workflows/cd.yml)<br>[../adr/0003-deploy-by-sha.md](../adr/0003-deploy-by-sha.md) | 🟡 Mid-CI-verification — same as above, only produced by a real `cd.yml` run. Screenshot the `Verify image signatures before deploying` step's log, or save a `cosign verify ...` output as `bonus-cosign-verify.txt`. |
+| GitOps: Argo CD or Flux reconciling the cluster from the repository | +4 | [../../.github/workflows/cd.yml](../../.github/workflows/cd.yml) (current deployment uses `kubectl apply`, not GitOps) | ⚫ Attempted and deliberately dropped — implemented and tested across ~10 iterations on `feat/bonus-features` (private-repo auth, kustomize rendering from a bare git clone, a PreSync hook deadlock, then a CPU-starved single-node runner killing Argo CD's own redis secret generation), then dropped in favour of the direct-deploy path so the other four bonus items stay reliably green rather than blocked on a flaky fifth. See that branch's commit history for the full diagnosis. |
+
+### How to (re)generate the remaining bonus evidence
+
+**OTel trace waterfall** (still needed, on top of the search-list screenshot already linked above)
+1. With the Compose stack up (`--scale ollama=0 --scale ollama-pull=0` adds `prometheus`, `grafana`, `jaeger`), submit **one complaint through the actual browser** at `http://localhost` — not `curl`; only real browser JS produces a `civicpulse-frontend` span.
+2. Open `http://localhost:16686` → Service `civicpulse-frontend` → Operation `POST /api/complaints` → **Find Traces**.
+3. Click into one of the resulting traces (not just the search list) to open its span waterfall, and screenshot that — it should show the frontend fetch span, nested under it the backend's FastAPI span, and nested under that a `triage.provider_call` span with an `httpx` child span (the real Groq call). Save as `bonus-otel-jaeger-trace-waterfall.png`.
+
+**Zero-downtime / digest+Cosign** — neither can be produced locally; they only happen inside a real `cd.yml` run in GitHub Actions (a live kind cluster, GitHub's OIDC token for signing).
 
 ## Legend
-✅ complete · 🟡 partial · ⚪ verified but intentionally not a screenshot (belongs in the video) · 🔴 not started
+✅ complete · 🟡 partial (some evidence exists; gaps are stated in the row) · 🔴 not started / not evidenced in this branch · ⚫ attempted and deliberately dropped (see the note on that row)
+
+## Still open
+- **Bonus evidence** (up to +15) — Grafana dashboard is complete; OTel tracing is partial (search-list screenshot done, waterfall still needed); zero-downtime and digest+Cosign are implemented and passing locally in CI on `feat/bonus-features` (evidence capture from a real `cd.yml` run still needed); GitOps was implemented, tested, and deliberately dropped.
 
 ## Adding new evidence
 Each item gets its own small branch + Issue + PR into `dev`, same as everything else in this repo — see `COMMIT-PLAN.md` (on the `team-plan` branch) for the workflow. Update this file's table in the same PR that adds the screenshot.
