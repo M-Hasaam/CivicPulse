@@ -38,3 +38,7 @@ Review the explanation of volume retention and deletion alongside the Compose sh
 
 Check the manual backend setup sequence for installation, migrations, seed data, and server startup.
 
+## Frontend development
+
+Review the frontend setup instructions for their working directory, dependency installation, and development URL.
+
