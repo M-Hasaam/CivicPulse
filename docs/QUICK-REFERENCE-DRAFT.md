@@ -58,3 +58,7 @@ Follow the README sequence: create the virtual environment, install development 
 
 From the frontend directory, the README uses npm ci followed by npm run dev. The development app is available at http://localhost:5173.
 
+## Kubernetes setup
+
+Follow the README Kubernetes quickstart to select a cluster, configure the local secrets file, apply the production overlay, and wait for rollouts.
+
