@@ -30,3 +30,7 @@ The default TRIAGE_PROVIDER=rules requires no API key or model download. Follow 
 
 For local model inference, select TRIAGE_PROVIDER=ollama and follow the Ollama startup instructions. The initial run downloads the configured model.
 
+## Startup inspection
+
+Use docker compose ps -a to inspect startup. Check service health and the exit codes of the migrate and seed jobs.
+
