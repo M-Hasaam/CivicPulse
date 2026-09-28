@@ -60,3 +60,8 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.report]
+# Measured at 92% (see docs/evidence/backend-coverage.txt); gate set well below that
+# so a real regression fails CI without making the bar a moving target on every PR.
+fail_under = 65

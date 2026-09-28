@@ -101,6 +101,30 @@ What "failing" means operationally is the *fallback rate* climbing. Diagnose in 
    ConfigMap and roll the backend Deployment — citizens keep getting triaged, just without the
    LLM's judgment, until the provider recovers.
 
+## Graceful shutdown (SIGTERM)
+
+The backend drains in-flight requests before exiting; there is no custom `signal.signal(SIGTERM,
+...)` handler in application code, and that is deliberate rather than an oversight.
+
+Uvicorn is PID 1 in the container (`Dockerfile`'s exec-form `CMD`), so it receives `SIGTERM`
+directly from the container runtime (Docker on `docker stop`, kubelet on pod termination) rather
+than a shell swallowing it. On `SIGTERM`, uvicorn itself stops accepting new connections and lets
+in-flight requests finish, bounded by `--timeout-graceful-shutdown 20` (`Dockerfile`). Only once
+uvicorn's own shutdown sequence completes does it close the ASGI app, which runs the `finally`
+block in `app/main.py`'s `lifespan` (`main.py:41-48`) to close the HTTP client, Redis connection and
+database engine — after requests have already finished, not concurrently with them.
+
+Writing an app-level `SIGTERM` handler on top of this would either duplicate uvicorn's own signal
+handling (a second handler racing the first) or replace it outright, which is more moving parts for
+no additional guarantee. What's actually been verified:
+
+- `docker stop` on a running container completes in 0.85s with no dropped connections during
+  normal load (noted in the `build(backend): multi-stage non-root Dockerfile` commit message).
+- `test_lifespan.py` exercises the shutdown half of the lifespan directly (HTTP client closes,
+  Redis client is torn down, the database engine's `dispose()` is called) — it does not send a
+  real OS signal, since that would mean spawning a real subprocess and racing it against a live
+  request purely to prove behavior FastAPI's own `TestClient` already exercises deterministically.
+
 ## Health vs. readiness, for whoever's confused by a restart loop
 
 - `/health` (liveness) never touches Postgres or Redis (`health.py:11-17`) — a slow database
