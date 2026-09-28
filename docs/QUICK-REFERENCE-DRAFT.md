@@ -50,3 +50,7 @@ The README distinguishes docker compose down, which retains volumes, from docker
 
 The manual setup in the README uses Python 3.12 and Node.js 22, with PostgreSQL and Redis running in containers.
 
+## Backend setup order
+
+Follow the README sequence: create the virtual environment, install development dependencies, apply Alembic migrations, seed data, and start uvicorn.
+
