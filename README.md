@@ -158,7 +158,9 @@ with code `0`.
 | --- | --- |
 | App | http://localhost |
 | API docs | http://localhost/docs |
+| Backend liveness | http://localhost/health |
 | Backend readiness | http://localhost/ready |
+| Backend metrics (raw Prometheus scrape) | http://localhost/metrics |
 | Prometheus | http://localhost:9090 |
 | Grafana (CivicPulse dashboard, no login) | http://localhost:3000 |
 | Jaeger (traces) | http://localhost:16686 |
