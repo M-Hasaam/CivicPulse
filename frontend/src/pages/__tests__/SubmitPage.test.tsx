@@ -113,7 +113,58 @@ describe('SubmitPage', () => {
     expect(await screen.findByText('water')).toBeInTheDocument();
     expect(screen.getByText(/high priority/i)).toBeInTheDocument();
     expect(screen.getByText('Burst water pipeline flooding basements')).toBeInTheDocument();
-    expect(screen.getByText(/llm:groq/i)).toBeInTheDocument();
+    expect(screen.getByText(/Groq \(hosted AI\)/i)).toBeInTheDocument();
+  });
+
+  it('dismisses the result and refocuses the form on "Submit another complaint"', async () => {
+    mockCreateComplaint.mockResolvedValue({
+      id: '1',
+      text: VALID_TEXT,
+      location: VALID_LOCATION,
+      reporter_contact: null,
+      category: 'water',
+      priority: 'high',
+      status: 'open',
+      ai_summary: 'x',
+      triaged_by: 'rules',
+      triage_latency_ms: 1,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    } as unknown as Awaited<ReturnType<typeof createComplaint>>);
+    const user = userEvent.setup();
+    render(<SubmitPage />);
+    await fillValidForm(user);
+    await user.click(screen.getByRole('button', { name: /submit complaint/i }));
+    expect(await screen.findByText('Complaint received.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /submit another complaint/i }));
+
+    expect(screen.queryByText('Complaint received.')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText(/what happened/i)).toHaveFocus());
+  });
+
+  it('falls back to the raw triaged_by value for a provider it does not recognise', async () => {
+    mockCreateComplaint.mockResolvedValue({
+      id: '1',
+      text: VALID_TEXT,
+      location: VALID_LOCATION,
+      reporter_contact: null,
+      category: 'water',
+      priority: 'high',
+      status: 'open',
+      ai_summary: 'x',
+      triaged_by: 'some-future-provider',
+      triage_latency_ms: 10,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    } as unknown as Awaited<ReturnType<typeof createComplaint>>);
+    const user = userEvent.setup();
+    render(<SubmitPage />);
+    await fillValidForm(user);
+
+    await user.click(screen.getByRole('button', { name: /submit complaint/i }));
+
+    expect(await screen.findByText(/some-future-provider/i)).toBeInTheDocument();
   });
 
   it('surfaces the server\'s field-level validation errors, not a generic message', async () => {
