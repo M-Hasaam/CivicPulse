@@ -63,13 +63,34 @@ jobs:
           assert data['status'] == 'open'
           assert data['triaged_by'] in {'rules', 'simulated', 'rules:fallback'}
           PY
-          curl --fail --silent -D headers.txt 'http://localhost/api/stats' --output stats.json
-          grep -i '^X-Cache:' headers.txt
+
+          # The POST above bumps the stats cache generation, so the next read is
+          # necessarily a MISS (it populates the new generation's cache entry) and
+          # the read after that is necessarily a HIT (served from what was just
+          # written) - this proves the cache actually caches, not just that the
+          # header exists.
+          curl --fail --silent -D headers-miss.txt 'http://localhost/api/stats' --output stats-miss.json
+          grep -i '^X-Cache: MISS' headers-miss.txt
+          curl --fail --silent -D headers-hit.txt 'http://localhost/api/stats' --output stats-hit.json
+          grep -i '^X-Cache: HIT' headers-hit.txt
           python - <<'PY'
           import json
           from pathlib import Path
-          data = json.loads(Path('stats.json').read_text())
+          data = json.loads(Path('stats-hit.json').read_text())
           assert data['total_complaints'] >= 1, data
+          PY
+
+          # Re-fetch the just-created complaint by ID: proves the record was
+          # actually persisted (not just echoed back on the POST response) and
+          # that triage assigned the category its keywords call for.
+          CREATED_ID=$(python -c "import json; print(json.load(open('created.json'))['id'])")
+          curl --fail --silent "http://localhost/api/complaints/$CREATED_ID" --output fetched.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('fetched.json').read_text())
+          assert data['status'] == 'open', data
+          assert data['category'] == 'streetlights', data
           PY
 
       - name: SIGTERM drains an in-flight request (real container, real signal)

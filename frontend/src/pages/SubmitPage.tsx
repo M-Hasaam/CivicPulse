@@ -1,7 +1,8 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import {
   CheckCircle2,
   Loader2,
+  Plus,
   Send,
   MapPin,
   ClipboardList,
@@ -71,12 +72,36 @@ const PRIORITY_BADGE: Record<string, string> = {
   low: "badge-low",
 };
 
+// Friendlier names for the raw `triaged_by` the backend sends (see
+// backend/app/providers/triage/factory.py and services/triage_service.py for the
+// exact values: llm:groq, llm:ollama, rules, rules:fallback, simulated). Falls back
+// to the raw value for anything not listed here, so a new provider never renders blank.
+const PROVIDER_LABEL: Record<string, string> = {
+  "llm:groq": "Groq (hosted AI)",
+  "llm:ollama": "Ollama (offline AI)",
+  rules: "Rules engine",
+  "rules:fallback": "Rules engine (AI fallback)",
+  simulated: "Simulated (test)",
+};
+
+function providerLabel(triagedBy: string): string {
+  return PROVIDER_LABEL[triagedBy] ?? triagedBy;
+}
+
 export function SubmitPage() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<Complaint | null>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+
+  function submitAnother() {
+    setResult(null);
+    // The form's already empty (cleared on success) - just return focus to it,
+    // after the confirmation card unmounts and the textarea regains its spot.
+    requestAnimationFrame(() => textRef.current?.focus());
+  }
 
   function updateField(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -225,17 +250,32 @@ export function SubmitPage() {
                   marginBottom: "0.25rem",
                 }}
               >
-                Triaged by <span className="mono">{result.triaged_by}</span> in{" "}
+                Triaged by {providerLabel(result.triaged_by)} in{" "}
                 {formatMs(result.triage_latency_ms)}
               </p>
 
               {/* Complaint ID — the canonical reference for follow-up */}
-              <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
+              <p
+                style={{
+                  color: "var(--text-muted)",
+                  fontSize: "0.8125rem",
+                  marginBottom: "1rem",
+                }}
+              >
                 Reference: <span className="mono">{result.id}</span>
               </p>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={submitAnother}
+              >
+                <Plus size={16} /> Submit another complaint
+              </button>
             </div>
           )}
 
+          {!result && (
           <form onSubmit={handleSubmit} noValidate>
             <p className="form-note">
               All fields are required unless marked optional.
@@ -246,6 +286,7 @@ export function SubmitPage() {
               </label>
               <textarea
                 id="complaint-text"
+                ref={textRef}
                 className="form-textarea"
                 value={form.text}
                 onChange={(e) => updateField("text", e.target.value)}
@@ -366,6 +407,7 @@ export function SubmitPage() {
               understand the issue.
             </p>
           </form>
+          )}
         </section>
         <aside className="report-sidebar">
           <div className="guide-panel">
