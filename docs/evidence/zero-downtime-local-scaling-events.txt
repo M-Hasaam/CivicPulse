@@ -1,0 +1,43 @@
+LAST SEEN   TYPE      REASON                            OBJECT                            MESSAGE
+3m51s       Warning   FailedToRetrieveImagePullSecret   pod/backend-86b7f7f4d5-jbdvs      Unable to retrieve some image pull secrets (ghcr-pull); attempting to pull the image may not succeed.
+3m31s       Warning   FailedToRetrieveImagePullSecret   pod/frontend-5f6c845c8f-d6jwt     Unable to retrieve some image pull secrets (ghcr-pull); attempting to pull the image may not succeed.
+3m56s       Warning   FailedToRetrieveImagePullSecret   pod/frontend-5f6c845c8f-49xwf     Unable to retrieve some image pull secrets (ghcr-pull); attempting to pull the image may not succeed.
+3m25s       Warning   FailedToRetrieveImagePullSecret   pod/backend-86b7f7f4d5-ts4mv      Unable to retrieve some image pull secrets (ghcr-pull); attempting to pull the image may not succeed.
+54m         Warning   FailedGetResourceMetric           horizontalpodautoscaler/backend   failed to get cpu utilization: unable to get metrics for resource cpu: unable to fetch metrics from resource metrics API: the server could not find the requested resource (get pods.metrics.k8s.io)
+18m         Normal    Sync                              ingress/civicpulse                Scheduled for sync
+71s         Normal    SuccessfulCreate                  replicaset/backend-556b556c8b     Created pod: backend-556b556c8b-hm54n
+55s         Warning   FailedToRetrieveImagePullSecret   pod/backend-556b556c8b-hm54n      Unable to retrieve some image pull secrets (ghcr-pull); attempting to pull the image may not succeed.
+71s         Normal    ScalingReplicaSet                 deployment/backend                Scaled up replica set backend-556b556c8b from 0 to 1
+71s         Normal    Scheduled                         pod/backend-556b556c8b-hm54n      Successfully assigned civicpulse/backend-556b556c8b-hm54n to civicpulse-control-plane
+71s         Normal    Pulled                            pod/backend-556b556c8b-hm54n      Container image "rancher/kubectl:v1.31.0" already present on machine
+70s         Normal    Created                           pod/backend-556b556c8b-hm54n      Created container: wait-for-migrate
+70s         Normal    Started                           pod/backend-556b556c8b-hm54n      Started container wait-for-migrate
+69s         Normal    Created                           pod/backend-556b556c8b-hm54n      Created container: backend
+69s         Normal    Started                           pod/backend-556b556c8b-hm54n      Started container backend
+69s         Normal    Pulled                            pod/backend-556b556c8b-hm54n      Container image "ghcr.io/m-hasaam/civicpulse/backend:latest" already present on machine
+55s         Normal    Pulled                            pod/backend-556b556c8b-v42ql      Container image "rancher/kubectl:v1.31.0" already present on machine
+55s         Normal    SuccessfulCreate                  replicaset/backend-556b556c8b     Created pod: backend-556b556c8b-v42ql
+39s         Warning   FailedToRetrieveImagePullSecret   pod/backend-556b556c8b-v42ql      Unable to retrieve some image pull secrets (ghcr-pull); attempting to pull the image may not succeed.
+55s         Normal    ScalingReplicaSet                 deployment/backend                Scaled down replica set backend-86b7f7f4d5 from 2 to 1
+55s         Normal    Killing                           pod/backend-86b7f7f4d5-ts4mv      Stopping container backend
+55s         Normal    SuccessfulDelete                  replicaset/backend-86b7f7f4d5     Deleted pod: backend-86b7f7f4d5-ts4mv
+55s         Normal    ScalingReplicaSet                 deployment/backend                Scaled up replica set backend-556b556c8b from 1 to 2
+55s         Normal    Created                           pod/backend-556b556c8b-v42ql      Created container: wait-for-migrate
+55s         Normal    Scheduled                         pod/backend-556b556c8b-v42ql      Successfully assigned civicpulse/backend-556b556c8b-v42ql to civicpulse-control-plane
+54s         Normal    Started                           pod/backend-556b556c8b-v42ql      Started container wait-for-migrate
+53s         Normal    Pulled                            pod/backend-556b556c8b-v42ql      Container image "ghcr.io/m-hasaam/civicpulse/backend:latest" already present on machine
+53s         Normal    Started                           pod/backend-556b556c8b-v42ql      Started container backend
+53s         Normal    Created                           pod/backend-556b556c8b-v42ql      Created container: backend
+39s         Normal    SuccessfulDelete                  replicaset/backend-86b7f7f4d5     Deleted pod: backend-86b7f7f4d5-jbdvs
+39s         Normal    ScalingReplicaSet                 deployment/backend                Scaled down replica set backend-86b7f7f4d5 from 1 to 0
+39s         Normal    Killing                           pod/backend-86b7f7f4d5-jbdvs      Stopping container backend
+32s         Warning   FailedGetResourceMetric           horizontalpodautoscaler/backend   failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+32s         Warning   FailedComputeMetricsReplicas      horizontalpodautoscaler/backend   invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+NAME                        READY   STATUS      RESTARTS   AGE
+backend-556b556c8b-hm54n    1/1     Running     0          71s
+backend-556b556c8b-v42ql    1/1     Running     0          55s
+frontend-5f6c845c8f-49xwf   1/1     Running     0          69m
+frontend-5f6c845c8f-d6jwt   1/1     Running     0          69m
+migrate-nzfr4               0/1     Completed   0          69m
+postgres-0                  1/1     Running     0          69m
+redis-5bfdf7f88d-cwbjc      1/1     Running     0          69m
