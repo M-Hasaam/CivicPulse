@@ -40,6 +40,30 @@ def render_complaint(text: str, location: str) -> str:
     return f"<complaint>\nLocation: {escape(location)}\n\n{escape(text)}\n</complaint>"
 
 
+async def check_groq_reachable(
+    api_key: SecretStr,
+    base_url: str = "https://api.groq.com/openai/v1",
+    timeout_seconds: float = 3.0,
+    client: httpx.AsyncClient | None = None,
+) -> bool:
+    """A cheap, real validation call - confirms the key actually works, not just
+    that it's non-empty. Only used by auto-detection at startup, never per-request."""
+    key = api_key.get_secret_value()
+    if not key:
+        return False
+    url = base_url.rstrip("/") + "/models"
+    headers = {"Authorization": f"Bearer {key}"}
+    try:
+        if client is not None:
+            response = await client.get(url, headers=headers, timeout=timeout_seconds)
+        else:
+            async with httpx.AsyncClient(timeout=timeout_seconds) as own_client:
+                response = await own_client.get(url, headers=headers)
+    except httpx.HTTPError:
+        return False
+    return response.is_success
+
+
 class LLMTriage:
     name = "llm:groq"
 

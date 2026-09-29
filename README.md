@@ -63,9 +63,12 @@ Copy-Item .env.example .env
 On macOS/Linux, use `cp .env.example .env` for the last command. If you already have a
 checkout and `.env`, keep your existing configuration.
 
-The template selects `TRIAGE_PROVIDER=rules`. Set `POSTGRES_PASSWORD` in `.env`; use
-letters, digits, `-`, `_`, or `.` because the deployment files insert it directly into a
-connection URL. `.env` is ignored by Git; [.env.example](.env.example) documents the settings.
+The template selects `TRIAGE_PROVIDER=auto`: at startup the backend uses Groq if
+`GROQ_API_KEY` validates, otherwise Ollama if it's reachable, otherwise keyword rules -
+so it works out of the box with no API key and no model download. Set `POSTGRES_PASSWORD`
+in `.env`; use letters, digits, `-`, `_`, or `.` because the deployment files insert it
+directly into a connection URL. `.env` is ignored by Git; [.env.example](.env.example)
+documents the settings.
 
 ### 2. Build and start
 
@@ -116,10 +119,17 @@ Set `TRIAGE_PROVIDER` in `.env` for development Compose and direct backend runs:
 
 | Value | Provider | Requirements |
 | --- | --- | --- |
-| `rules` | Keyword rules; default first-run option | No API key or model download |
+| `auto` | Detects what's usable at startup: Groq, then Ollama, then rules (default) | No API key or model download |
+| `rules` | Keyword rules, pinned | No API key or model download |
 | `llm` | Groq-hosted model; default model `openai/gpt-oss-20b` | `GROQ_API_KEY` and outbound connectivity |
 | `ollama` | Local model; default model `llama3.2:1b` | Ollama and an initial model download |
 | `simulated` | Deterministic provider for tests and demos | No external service |
+
+`auto` builds its priority chain once at startup: Groq is included only if `GROQ_API_KEY`
+is set and a live validation call succeeds; Ollama is included only if it responds; rules
+is always the last, unconditional entry. A container restart re-evaluates the chain, so
+starting Ollama after the backend is already running needs a restart to be picked up. See
+[the triage guide](docs/TRIAGE.md#auto-detection-triage_provider-auto) for the full detail.
 
 For Groq, set `TRIAGE_PROVIDER=llm` and `GROQ_API_KEY`, then rerun the quickstart's Compose
 command. `GROQ_MODEL` selects the model.
