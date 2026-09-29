@@ -186,13 +186,17 @@ flowchart LR
         redis[(Redis)]
     end
 
+    subgraph llmnet["llm network"]
+        ollama[Ollama]
+    end
+
     frontend -->|"proxy_pass /api/*"| backend
     backend --> postgres
     backend --> redis
     backend --> triage{Triage provider}
-    triage --> groq[Groq]
-    triage --> ollama[Ollama]
-    triage --> rules[Rules / simulated]
+    triage -.->|"internet: HTTPS"| groq[Groq]
+    triage --> ollama
+    triage -.->|"in-process, no network"| rules[Rules / simulated]
     prometheus[Prometheus] -->|/metrics scrape| backend
     grafana[Grafana] --> prometheus
     backend -.->|OTLP traces| jaeger[Jaeger]
