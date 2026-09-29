@@ -9,6 +9,16 @@ spec:
     - host: civicpulse.localhost
       http:
         paths:
+          # Redundant with frontend's own nginx (see docs/adr/0002-frontend-runtime-config.md),
+          # which already proxies /api to the backend Service identically to this rule. Kept so
+          # /api is also satisfied as a literal Ingress path, not only via the in-pod proxy.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  name: http
           - path: /
             pathType: Prefix
             backend:

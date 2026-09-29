@@ -1,0 +1,45 @@
+Local reproduction of Cosign image signing + verification by digest.
+Uses a local key pair against a local ephemeral registry (localhost:5000) rather than
+GitHub's keyless OIDC flow used by the real cd.yml/ADR 0003 - captured this way per
+instruction, to avoid triggering another real GitHub Actions run. Demonstrates the same
+underlying mechanism (sign an image by its immutable digest, verify the signature before
+deploying) with a different identity/trust model than CI's keyless signing.
+
+=== SETUP ===
+$ docker run -d --name local-registry -p 5000:5000 registry:2
+$ docker tag civicpulse-backend:dev localhost:5000/civicpulse-backend:local
+$ docker push localhost:5000/civicpulse-backend:local
+local: digest: sha256:6a0db7a952375267e0cca186dc504fcd39d2545aceaa60a87a12d510798d91d3 size: 856
+
+$ cosign generate-key-pair
+Private key written to cosign.key
+Public key written to cosign.pub
+
+=== SIGN (by digest, not by mutable tag) ===
+$ cosign sign --key cosign.key localhost:5000/civicpulse-backend@sha256:6a0db7a952375267e0cca186dc504fcd39d2545aceaa60a87a12d510798d91d3
+Signing artifact...
+Pushing signature to: localhost:5000/civicpulse-backend
+
+=== VERIFY (positive case: the signed image) ===
+$ cosign verify --key cosign.pub localhost:5000/civicpulse-backend@sha256:6a0db7a952375267e0cca186dc504fcd39d2545aceaa60a87a12d510798d91d3
+
+Verification for localhost:5000/civicpulse-backend@sha256:6a0db7a952375267e0cca186dc504fcd39d2545aceaa60a87a12d510798d91d3 --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key
+
+[{"critical":{"identity":{"docker-reference":"localhost:5000/civicpulse-backend@sha256:6a0db7a952375267e0cca186dc504fcd39d2545aceaa60a87a12d510798d91d3"},"image":{"docker-manifest-digest":"sha256:6a0db7a952375267e0cca186dc504fcd39d2545aceaa60a87a12d510798d91d3"},"type":"https://sigstore.dev/cosign/sign/v1"},"optional":{}}]
+
+=== NEGATIVE CASE: verifying an image that was never signed must fail ===
+$ docker tag civicpulse-frontend:dev localhost:5000/civicpulse-frontend:unsigned
+$ docker push localhost:5000/civicpulse-frontend:unsigned
+unsigned: digest: sha256:6a200722ae2c56fcd0075bff9e67464dc816ef075777f6d45066dc74326e4573 size: 856
+
+$ cosign verify --key cosign.pub localhost:5000/civicpulse-frontend:unsigned
+Error: no signatures found
+error during command execution: no signatures found
+exit code: 10
+
+Confirms verification is meaningful (rejects an unsigned image with the same key),
+not a rubber stamp that always passes.
