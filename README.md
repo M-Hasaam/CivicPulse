@@ -161,10 +161,14 @@ with code `0`.
 | Backend readiness | http://localhost/ready |
 | Prometheus | http://localhost:9090 |
 | Grafana (CivicPulse dashboard, no login) | http://localhost:3000 |
+| Jaeger (traces) | http://localhost:16686 |
 
-Prometheus and Grafana come up by default, scraping the backend's `/metrics` with a
-pre-provisioned dashboard (HTTP rate/latency, triage latency by provider, fallbacks).
-Skip them with `--scale prometheus=0 --scale grafana=0`, same idea as `ollama`.
+Prometheus, Grafana and Jaeger all come up by default. Prometheus scrapes the backend's
+`/metrics` into a pre-provisioned Grafana dashboard (HTTP rate/latency, triage latency by
+provider, fallbacks). Jaeger receives traces from both the backend (every request, plus
+the outbound LLM call) and the frontend (submitted through nginx's `/otel/` proxy,
+same-origin - no CORS setup needed). Skip any of them with `--scale prometheus=0
+--scale grafana=0 --scale jaeger=0`, same idea as `ollama`.
 
 Everyday commands:
 
