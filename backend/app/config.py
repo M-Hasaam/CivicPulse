@@ -15,14 +15,21 @@ class Settings(BaseSettings):
     # PostgreSQL 16 - required, never defaulted: credentials come from the environment only
     DATABASE_URL: str
 
-    # AI triage: llm (Groq) | ollama (offline) | rules | simulated (CI)
-    TRIAGE_PROVIDER: Literal["llm", "ollama", "rules", "simulated"] = "rules"
+    # AI triage: auto (detect Groq/Ollama at startup) | llm (Groq) | ollama (offline)
+    # | rules | simulated (CI). auto builds a priority chain - Groq, then Ollama,
+    # then rules - out of whichever are actually usable; the other four values pin
+    # a single provider explicitly (still falling back to rules on failure).
+    TRIAGE_PROVIDER: Literal["auto", "llm", "ollama", "rules", "simulated"] = "rules"
     # SecretStr keeps the key out of repr() and logs.
     GROQ_API_KEY: SecretStr = SecretStr("")
     GROQ_MODEL: str = "openai/gpt-oss-20b"
     TRIAGE_TIMEOUT_SECONDS: float = 10.0
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2:1b"
+    # Short timeout for auto-detection's one-time startup checks (Groq validation
+    # call, Ollama reachability ping) - deliberately much shorter than
+    # TRIAGE_TIMEOUT_SECONDS, which bounds a real triage call, not a health check.
+    PROVIDER_DETECT_TIMEOUT_SECONDS: float = 3.0
     SIMULATED_TRIAGE_FAILURE: Literal["none", "raise", "malformed"] = "none"
     SIMULATED_TRIAGE_SEED: int = 0
 

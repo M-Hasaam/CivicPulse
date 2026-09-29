@@ -97,29 +97,28 @@ On macOS/Linux:
 cp .env.example .env
 ```
 
-The default `.env` uses `TRIAGE_PROVIDER=rules`, so the app works without an API
-key and without downloading an AI model.
+The default `.env` uses `TRIAGE_PROVIDER=auto`: at startup the backend uses Groq if
+`GROQ_API_KEY` is set and validates, otherwise Ollama if it's reachable, otherwise
+rules - so it works out of the box with no API key and no model download, and picks
+up Groq or Ollama automatically the moment either becomes available, with no `.env`
+edit needed. See [`docs/TRIAGE.md`](docs/TRIAGE.md) for the full priority order and
+how to pin a single provider instead (`llm`, `ollama`, `rules`).
 
-### 3. Choose how to run triage
+### 3. Choose whether to bring up Ollama
 
-| Option | When to use it | `.env` value | Command |
-| --- | --- | --- | --- |
-| Rules, no Ollama | Fastest first run. No model download. | `TRIAGE_PROVIDER=rules` | `docker compose up -d --build --scale ollama=0 --scale ollama-pull=0` |
-| Ollama | Fully offline AI triage. Downloads the model once. | `TRIAGE_PROVIDER=ollama` | `docker compose up -d --build` |
+| Option | When to use it | Command |
+| --- | --- | --- |
+| No Ollama | Fastest first run. No model download. `auto` falls back to Groq (if configured) or rules. | `docker compose up -d --build --scale ollama=0 --scale ollama-pull=0` |
+| With Ollama | Fully offline AI triage available. Downloads the model once; `auto` picks it up automatically. | `docker compose up -d --build` |
 
-For a normal first run, use the rules option:
+For a normal first run:
 
 ```powershell
 docker compose up -d --build --scale ollama=0 --scale ollama-pull=0
 ```
 
-If you choose Ollama, edit `.env` first:
-
-```text
-TRIAGE_PROVIDER=ollama
-```
-
-Then run:
+For fully offline AI triage, run the full stack instead - no `.env` edit needed,
+`auto` detects Ollama once it's up:
 
 ```powershell
 docker compose up -d --build
@@ -358,9 +357,10 @@ how complaints are triaged with `TRIAGE_PROVIDER` in `.env`:
 
 | `TRIAGE_PROVIDER` | Needs | Notes |
 | --- | --- | --- |
-| `rules` (default) | nothing | Keyword rules. Works out of the box |
-| `llm` | `GROQ_API_KEY` (free at https://console.groq.com) | Groq `openai/gpt-oss-20b`, ~1 s per complaint |
-| `ollama` | the Ollama container above | `llama3.2:1b` on CPU: ~2 s per complaint, first call ~7 s while the model loads |
+| `auto` (default) | nothing required | Detects what's usable at startup: Groq if `GROQ_API_KEY` validates, else Ollama if reachable, else rules |
+| `llm` | `GROQ_API_KEY` (free at https://console.groq.com) | Pins Groq `openai/gpt-oss-20b`, ~1 s per complaint |
+| `ollama` | the Ollama container above | Pins `llama3.2:1b` on CPU: ~2 s per complaint, first call ~7 s while the model loads |
+| `rules` | nothing | Pins keyword rules only - no AI, ever |
 | `simulated` | nothing | Deterministic fake used by the tests |
 
 Whatever you pick, any failure (timeout, rate limit, bad output, Ollama not

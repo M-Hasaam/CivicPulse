@@ -15,7 +15,7 @@ from app.providers.triage.base import (
     TriageUnavailableError,
     parse_triage_output,
 )
-from app.providers.triage.factory import get_triage_provider
+from app.providers.triage.factory import build_triage_chain
 from app.providers.triage.llm import LLMTriage, render_complaint
 from app.providers.triage.ollama import OllamaTriage
 from app.providers.triage.rules import RuleBasedTriage
@@ -270,7 +270,8 @@ def test_ollama_uses_json_mode_and_the_same_validator() -> None:
 )
 def test_factory_selects_provider_from_environment(name: str, expected: type) -> None:
     settings = Settings(DATABASE_URL="x", TRIAGE_PROVIDER=name, _env_file=None)  # type: ignore[call-arg, arg-type]
-    assert isinstance(get_triage_provider(settings), expected)
+    chain = asyncio.run(build_triage_chain(settings))
+    assert isinstance(chain[0], expected)
 
 
 @pytest.mark.parametrize(

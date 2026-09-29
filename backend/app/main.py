@@ -13,7 +13,7 @@ from app.cache.client import close_redis, connect_redis
 from app.config import settings
 from app.logging_config import configure_logging, request_id_from_header, request_id_var
 from app.metrics import REQUEST_COUNT, REQUEST_LATENCY
-from app.providers.triage.factory import get_triage_provider
+from app.providers.triage.factory import build_triage_chain
 from app.repositories.database import engine
 from app.routes.complaints import router as complaints_router
 from app.routes.errors import register_error_handlers
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     connect_redis()
     http_client = httpx.AsyncClient(timeout=settings.TRIAGE_TIMEOUT_SECONDS)
     app.state.http_client = http_client
-    app.state.triage = TriageOrchestrator(get_triage_provider(settings, http_client))
+    app.state.triage = TriageOrchestrator(await build_triage_chain(settings, http_client))
     logger.info("startup complete; triage provider %s", app.state.triage.provider.name)
     try:
         yield

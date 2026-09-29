@@ -9,9 +9,9 @@
 #   - no seed: production does not get demo data
 #   - ollama only with --profile ollama
 #   - TRIAGE_PROVIDER is read from PROD_TRIAGE_PROVIDER, not TRIAGE_PROVIDER: the dev
-#     .env sets TRIAGE_PROVIDER=rules, and reusing that file here would otherwise
-#     silently shadow this file's own `llm` default with no error. Set
-#     PROD_TRIAGE_PROVIDER in your deploy environment to override it.
+#     .env sets TRIAGE_PROVIDER=auto, and reusing that file here would otherwise
+#     silently shadow this file's own deliberately-explicit `llm` default with no
+#     error. Set PROD_TRIAGE_PROVIDER in your deploy environment to override it.
 
 name: civicpulse-prod
 

@@ -14,6 +14,7 @@ from app.cache.client import get_redis
 from app.dependencies import get_complaint_repository, get_triage
 from app.main import app
 from app.providers.triage.base import TriageProvider, parse_triage_output
+from app.providers.triage.rules import RuleBasedTriage
 from app.providers.triage.simulated import SimulatedTriage
 from app.repositories.complaint_repo import ComplaintLockTimeoutError
 from app.services.triage_service import TriageOrchestrator
@@ -31,7 +32,9 @@ class Api:
     redis: Redis
 
     def use_provider(self, provider: TriageProvider) -> None:
-        app.dependency_overrides[get_triage] = lambda: TriageOrchestrator(provider)
+        app.dependency_overrides[get_triage] = lambda: TriageOrchestrator(
+            [provider, RuleBasedTriage()]
+        )
 
 
 @pytest.fixture
@@ -39,7 +42,9 @@ async def api(redis: Redis) -> AsyncIterator[Api]:
     repo = FakeComplaintRepository()
     app.dependency_overrides[get_redis] = lambda: redis
     app.dependency_overrides[get_complaint_repository] = lambda: repo
-    app.dependency_overrides[get_triage] = lambda: TriageOrchestrator(SimulatedTriage())
+    app.dependency_overrides[get_triage] = lambda: TriageOrchestrator(
+        [SimulatedTriage(), RuleBasedTriage()]
+    )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield Api(client, repo, redis)
