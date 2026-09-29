@@ -174,23 +174,42 @@ and [the triage guide](docs/TRIAGE.md) for provider details.
 
 ```mermaid
 flowchart LR
-    user[Resident or operator] --> frontend[React app / nginx]
-    frontend -->|/api| backend[FastAPI]
-    backend --> postgres[(PostgreSQL)]
-    backend --> redis[(Redis)]
+    user[Resident or operator] -->|HTTP| frontend
+
+    subgraph edgenet["edge network"]
+        frontend["nginx<br/>serves the React build<br/>reverse-proxies /api and /otel"]
+    end
+
+    subgraph internalnet["internal network"]
+        backend[FastAPI]
+        postgres[(PostgreSQL)]
+        redis[(Redis)]
+    end
+
+    subgraph llmnet["llm network"]
+        ollama[Ollama]
+    end
+
+    frontend -->|"proxy_pass /api/*"| backend
+    backend --> postgres
+    backend --> redis
     backend --> triage{Triage provider}
-    triage --> groq[Groq]
-    triage --> ollama[Ollama]
-    triage --> rules[Rules / simulated]
-    prometheus[Prometheus] -->|/metrics| backend
+    triage -.->|"internet: HTTPS"| groq[Groq]
+    triage --> ollama
+    triage -.->|"in-process, no network"| rules[Rules / simulated]
+    prometheus[Prometheus] -->|/metrics scrape| backend
     grafana[Grafana] --> prometheus
     backend -.->|OTLP traces| jaeger[Jaeger]
-    frontend -.->|/otel proxy| jaeger
+    frontend -.->|"proxy_pass /otel/*"| jaeger
 ```
 
-The diagram shows the development Compose stack. The browser uses relative `/api` paths;
-nginx proxies requests to FastAPI, while Vite supplies the same API proxy during local
-development. The frontend image needs no environment-specific backend URL baked into it.
+The diagram shows the development Compose stack, with a network boundary drawn around each
+service the way `compose.yaml` actually segments them. The browser only ever talks to nginx;
+nginx serves the built React app directly and reverse-proxies `/api/*` to FastAPI and `/otel/*`
+to Jaeger (`frontend/nginx.conf`), so the browser never needs to know FastAPI's address. Vite
+supplies the same `/api` proxy during local development. The frontend image needs no
+environment-specific backend URL baked into it - see
+[ADR 0002](docs/adr/0002-frontend-runtime-config.md).
 
 In Compose, PostgreSQL and Redis share an internal network with the backend and have no
 published host ports. The frontend joins the application and observability networks, so it
