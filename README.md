@@ -159,6 +159,12 @@ with code `0`.
 | App | http://localhost |
 | API docs | http://localhost/docs |
 | Backend readiness | http://localhost/ready |
+| Prometheus | http://localhost:9090 |
+| Grafana (CivicPulse dashboard, no login) | http://localhost:3000 |
+
+Prometheus and Grafana come up by default, scraping the backend's `/metrics` with a
+pre-provisioned dashboard (HTTP rate/latency, triage latency by provider, fallbacks).
+Skip them with `--scale prometheus=0 --scale grafana=0`, same idea as `ollama`.
 
 Everyday commands:
 
