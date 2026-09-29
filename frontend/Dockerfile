@@ -26,8 +26,18 @@ USER root
 RUN apk upgrade --no-cache
 USER nginx
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Served as a template (not copied straight to conf.d) so the base image's own
+# entrypoint scripts run envsubst on it at container start, substituting
+# ${NGINX_LOCAL_RESOLVERS} - see nginx.conf's `resolver` directive for why.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=builder /build/dist /usr/share/nginx/html
+
+# Opts the base image's 15-local-resolvers.envsh script into exporting
+# NGINX_LOCAL_RESOLVERS (from /etc/resolv.conf) at container start - it's a no-op
+# unless this is set. That variable, not a hardcoded IP, is what nginx.conf's
+# `resolver` directive needs to work identically in Compose (Docker's embedded
+# DNS) and Kubernetes (cluster DNS) without knowing which one it's running on.
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 
 EXPOSE 8080
 
