@@ -133,13 +133,13 @@ including the GitOps attempt and why it was dropped.
 2. Open `http://localhost:16686` → Service `civicpulse-frontend` → Operation `POST /api/complaints` → **Find Traces**.
 3. Click into one of the resulting traces (not just the search list) to open its span waterfall, and screenshot that — it should show the frontend fetch span, nested under it the backend's FastAPI span, and nested under that a `triage.provider_call` span with an `httpx` child span (the real Groq call). Save as `bonus-otel-jaeger-trace-waterfall.png`.
 
-**Zero-downtime / digest+Cosign** — neither can be produced locally; they only happen inside a real `cd.yml` run in GitHub Actions (a live kind cluster, GitHub's OIDC token for signing).
+**Zero-downtime / digest+Cosign** — now captured via local reproductions (see the table rows above: `zero-downtime-local-*.txt`, `cosign-digest-verify-local.txt`). Re-run against a real `cd.yml` execution instead if the pipeline-native artifact or GitHub's keyless OIDC signing specifically must be evidenced.
 
 ## Legend
 ✅ complete · 🟡 partial (some evidence exists; gaps are stated in the row) · 🔴 not started / not evidenced in this branch · ⚫ attempted and deliberately dropped (see the note on that row)
 
 ## Still open
-- **Bonus evidence** (up to +15) — Grafana dashboard is complete; OTel tracing is partial (search-list screenshot done, waterfall still needed); zero-downtime and digest+Cosign are implemented and passing locally in CI on `feat/bonus-features` (evidence capture from a real `cd.yml` run still needed); GitOps was implemented, tested, and deliberately dropped.
+- **Bonus evidence** (up to +15) — Grafana dashboard and zero-downtime/Cosign are complete (the latter two via local reproductions, not real `cd.yml` artifacts); OTel tracing is partial (search-list screenshot done, waterfall still needed); GitOps was implemented, tested, and deliberately dropped.
 
 ## Adding new evidence
 Each item gets its own small branch + Issue + PR into `dev`, same as everything else in this repo — see `COMMIT-PLAN.md` (on the `team-plan` branch) for the workflow. Update this file's table in the same PR that adds the screenshot.
