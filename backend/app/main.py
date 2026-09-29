@@ -20,6 +20,7 @@ from app.routes.errors import register_error_handlers
 from app.routes.health import router as health_router
 from app.routes.stats import router as stats_router
 from app.services.triage_service import TriageOrchestrator
+from app.telemetry import configure_tracing
 
 configure_logging(settings.LOG_LEVEL)
 logger = logging.getLogger("civicpulse")
@@ -49,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="CivicPulse API", lifespan=lifespan)
+configure_tracing(app)
 
 
 @app.middleware("http")
