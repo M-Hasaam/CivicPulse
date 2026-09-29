@@ -482,13 +482,42 @@ The [runbook](docs/RUNBOOK.md) covers operational investigation and rollback in 
 
 ## Screenshots
 
-| Complaint submission | Submission result |
-| --- | --- |
-| ![Complaint form with description, location, and optional contact fields](docs/evidence/readme-frontend-ui.png) | ![Successful complaint submission with category, priority, provider, and reference ID](docs/evidence/readme-submit-result.png) |
+Captured from the running application in Chromium at 1440 × 1280. Select an image to view it at full size.
 
-| Operations dashboard | Statistics and triage activity |
-| --- | --- |
-| ![Operations dashboard with filters, pagination, and status actions](docs/evidence/localhost_dashboard.png) | ![Statistics page showing complaint breakdowns and recent triage outcomes](docs/evidence/localhost_stats.png) |
+<table>
+  <tr>
+    <th align="left">Complaint submission</th>
+    <th align="left">Submission result</th>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/complaint-submission.png">
+        <img src="docs/images/complaint-submission.png" width="100%" alt="Complaint form with description, location, and optional contact fields">
+      </a>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/submission-result.png">
+        <img src="docs/images/submission-result.png" width="100%" alt="Successful submission with category, priority, Groq summary, reference ID, and a submit-another action">
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <th align="left">Operations dashboard</th>
+    <th align="left">Statistics and triage activity</th>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/operations-dashboard.png">
+        <img src="docs/images/operations-dashboard.png" width="100%" alt="Operations dashboard filtered to high-priority complaints, with five results per page and status actions">
+      </a>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/statistics.png">
+        <img src="docs/images/statistics.png" width="100%" alt="Complaint statistics, category and priority breakdowns, and recent triage provider activity">
+      </a>
+    </td>
+  </tr>
+</table>
 
 Additional captures show the [Grafana dashboard](docs/evidence/bonus-grafana-dashboard.png),
 [Jaeger trace waterfall](docs/evidence/bonus-otel-jaeger-trace-waterfall.png), and
