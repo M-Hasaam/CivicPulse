@@ -8,6 +8,7 @@ from redis.asyncio import Redis
 
 from app.cache import stats_cache
 from app.domain import Category, Priority, Status
+from app.providers.triage.rules import RuleBasedTriage
 from app.providers.triage.simulated import SimulatedTriage
 from app.repositories.complaint_repo import ComplaintRepository
 from app.services.complaint_service import ComplaintNotFoundError, ComplaintService
@@ -25,7 +26,8 @@ def make_service(
 ) -> tuple[ComplaintService, FakeComplaintRepository]:
     repo = FakeComplaintRepository()
     provider = SimulatedTriage(failure=failure)  # type: ignore[arg-type]
-    service = ComplaintService(cast(ComplaintRepository, repo), redis, TriageOrchestrator(provider))
+    orchestrator = TriageOrchestrator([provider, RuleBasedTriage()])
+    service = ComplaintService(cast(ComplaintRepository, repo), redis, orchestrator)
     return service, repo
 
 

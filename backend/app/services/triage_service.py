@@ -1,4 +1,4 @@
-"""Triage orchestration: cache, primary provider, rule-based fallback.
+"""Triage orchestration: cache, then an ordered provider chain.
 
 The rest of the system calls TriageOrchestrator.triage and never learns which
 provider answered or whether it failed - only what triaged_by to record.
@@ -6,6 +6,7 @@ provider answered or whether it failed - only what triaged_by to record.
 
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -16,10 +17,13 @@ from app.cache import triage_log
 from app.cache.triage_cache import cache_triage, get_cached_triage
 from app.metrics import TRIAGE_CACHE, TRIAGE_FALLBACKS, TRIAGE_LATENCY
 from app.providers.triage.base import TriageProvider, TriageResult
-from app.providers.triage.rules import RuleBasedTriage
 
 logger = logging.getLogger(__name__)
 
+# Reported only when the chain's last, guaranteed-safe entry answers after every
+# provider ahead of it has failed - never for a real provider answering as itself,
+# even one that isn't first in the chain (e.g. Ollama answering because Groq is down
+# is still a real AI answer, not a degraded one).
 FALLBACK_NAME = "rules:fallback"
 
 
@@ -34,9 +38,15 @@ class TriageOutcome:
 
 
 class TriageOrchestrator:
-    def __init__(self, provider: TriageProvider, fallback: TriageProvider | None = None) -> None:
-        self.provider = provider
-        self.fallback = fallback or RuleBasedTriage()
+    def __init__(self, chain: Sequence[TriageProvider]) -> None:
+        if not chain:
+            raise ValueError("TriageOrchestrator needs at least one provider")
+        self._chain = list(chain)
+        # Kept for callers that log/inspect the primary provider (main.py's startup
+        # log, complaint_service.py's fallback warning) - always the first hop, same
+        # meaning as before this was a chain.
+        self.provider = self._chain[0]
+        self._provider_names = {p.name for p in self._chain}
 
     async def triage(self, text: str, location: str, redis: Redis) -> TriageOutcome:
         started = time.perf_counter()
@@ -70,12 +80,14 @@ class TriageOrchestrator:
         entry = await get_cached_triage(redis, text)
         hit = False
         outcome = None
-        # Only reuse an answer from the provider that is configured now
-        if entry is not None and entry.get("triaged_by") == self.provider.name:
+        # Only reuse an answer from a provider that's actually in the chain right
+        # now (any hop, not just the primary) - a cached FALLBACK_NAME entry never
+        # exists in the first place, since fallback answers are never cached below.
+        if entry is not None and entry.get("triaged_by") in self._provider_names:
             try:
                 outcome = TriageOutcome(
                     result=TriageResult.model_validate(entry["result"]),
-                    triaged_by=self.provider.name,
+                    triaged_by=entry["triaged_by"],
                     latency_ms=_elapsed_ms(started),
                     fallback=False,
                     cached=True,
@@ -88,27 +100,34 @@ class TriageOrchestrator:
         return outcome
 
     async def _from_provider(self, text: str, location: str, started: float) -> TriageOutcome:
-        try:
-            result = await self.provider.triage(text, location)
-        except Exception as exc:  # any provider failure - known or not - must not reach the user
-            error_class = type(exc).__name__
-            TRIAGE_FALLBACKS.labels(provider=self.provider.name, error=error_class).inc()
-            result = await self.fallback.triage(text, location)
+        last_error_class: str | None = None
+        last_index = len(self._chain) - 1
+        for index, provider in enumerate(self._chain):
+            try:
+                result = await provider.triage(text, location)
+            except Exception as exc:  # any failure, known or not - must not reach the user
+                error_class = type(exc).__name__
+                TRIAGE_FALLBACKS.labels(provider=provider.name, error=error_class).inc()
+                if last_error_class is None:
+                    last_error_class = error_class
+                continue
+
+            # Only the chain's terminal, guaranteed-safe entry counts as "fell back" -
+            # a mid-chain provider (e.g. Ollama answering because Groq failed) is a
+            # real answer in its own right: cacheable, and identified by its own name.
+            is_last_resort = index == last_index and index > 0
             return TriageOutcome(
                 result=result,
-                triaged_by=FALLBACK_NAME,
+                triaged_by=FALLBACK_NAME if is_last_resort else provider.name,
                 latency_ms=_elapsed_ms(started),
-                fallback=True,
+                fallback=is_last_resort,
                 cached=False,
-                error_class=error_class,
+                error_class=last_error_class if index > 0 else None,
             )
-        return TriageOutcome(
-            result=result,
-            triaged_by=self.provider.name,
-            latency_ms=_elapsed_ms(started),
-            fallback=False,
-            cached=False,
-        )
+
+        # Unreachable in practice: the chain always ends in RuleBasedTriage, which
+        # cannot fail by its own design (no network, no state, no input it rejects).
+        raise RuntimeError("every provider in the triage chain failed")
 
 
 def _elapsed_ms(started: float) -> int:
