@@ -175,10 +175,7 @@ jobs:
 
       - name: Deploy SHA-tagged images
         run: |
-          # Render the base overlay (with the CI-only CPU patch), then re-tag with
-          # the real commit SHA via `kubectl set image --local` - the same recipe
-          # docs/RUNBOOK.md documents for a declarative rollback, so the normal
-          # deploy path and the rollback path share one re-tagging mechanism.
+          # Replace image references in workloads without modifying other resources.
           mkdir -p .cd-render
           cat > .cd-render/kustomization.yaml <<EOF
           apiVersion: kustomize.config.k8s.io/v1beta1
@@ -195,20 +192,15 @@ jobs:
                 - op: replace
                   path: /spec/template/spec/containers/0/resources/requests/cpu
                   value: 200m
+          images:
+            - name: ghcr.io/m-hasaam/civicpulse/backend
+              newName: ${{ steps.meta.outputs.backend }}
+              newTag: "${{ steps.meta.outputs.sha }}"
+            - name: ghcr.io/m-hasaam/civicpulse/frontend
+              newName: ${{ steps.meta.outputs.frontend }}
+              newTag: "${{ steps.meta.outputs.sha }}"
           EOF
-          kubectl kustomize .cd-render > rendered-prod.yaml
-          # kubectl set image --local exits non-zero whenever the input stream
-          # contains any resource without a matching container (every Service,
-          # ConfigMap, PVC, etc. in this manifest) even though it still writes
-          # correct output for every resource - `|| true` reflects that it's
-          # expected, not a real failure; the real correctness check is the
-          # grep immediately after.
-          kubectl set image --local -f rendered-prod.yaml \
-            backend=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
-            migrate=${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }} \
-            frontend=${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.sha }} \
-            -o yaml > rendered-prod-sha.yaml 2>/dev/null || true
-          grep -q "${{ steps.meta.outputs.sha }}" rendered-prod-sha.yaml
+          kubectl kustomize .cd-render > rendered-prod-sha.yaml
           # A Job's pod template is immutable once created, so re-applying "migrate"
           # with a new image on top of a prior release's completed Job would fail
           # outright instead of deploying. Delete it first - every release gets a
