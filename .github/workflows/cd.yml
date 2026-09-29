@@ -57,9 +57,28 @@ jobs:
         run: |
           SHA=$(git rev-parse HEAD)
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          BACKEND=ghcr.io/$OWNER/civicpulse/backend
+          FRONTEND=ghcr.io/$OWNER/civicpulse/frontend
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-          echo "backend=ghcr.io/$OWNER/civicpulse/backend" >> "$GITHUB_OUTPUT"
-          echo "frontend=ghcr.io/$OWNER/civicpulse/frontend" >> "$GITHUB_OUTPUT"
+          echo "backend=$BACKEND" >> "$GITHUB_OUTPUT"
+          echo "frontend=$FRONTEND" >> "$GITHUB_OUTPUT"
+
+          # :latest means "what's on main" - only tag it on an actual push to main
+          # (or a manual dispatch explicitly targeting main). workflow_dispatch on any
+          # other branch, e.g. to test a PR against a real cd.yml run, must never move
+          # it - a feature branch build must never look like the current main release.
+          {
+            echo "backend_tags<<TAGEOF"
+            echo "$BACKEND:$SHA"
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then echo "$BACKEND:latest"; fi
+            echo "TAGEOF"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "frontend_tags<<TAGEOF"
+            echo "$FRONTEND:$SHA"
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then echo "$FRONTEND:latest"; fi
+            echo "TAGEOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -76,18 +95,14 @@ jobs:
         with:
           context: backend
           push: true
-          tags: |
-            ${{ steps.meta.outputs.backend }}:${{ steps.meta.outputs.sha }}
-            ${{ steps.meta.outputs.backend }}:latest
+          tags: ${{ steps.meta.outputs.backend_tags }}
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
         with:
           context: frontend
           push: true
-          tags: |
-            ${{ steps.meta.outputs.frontend }}:${{ steps.meta.outputs.sha }}
-            ${{ steps.meta.outputs.frontend }}:latest
+          tags: ${{ steps.meta.outputs.frontend_tags }}
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.12.0
