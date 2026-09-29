@@ -354,7 +354,49 @@ docker compose up -d --build --scale ollama=0 --scale ollama-pull=0 --scale prom
 Production Compose and Kubernetes do not provision Prometheus, Grafana, or Jaeger. Backend
 trace export is enabled only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set in the process environment.
 
+### Metrics and traces in action
+
+These browser captures show the running development stack at a matching 1440 × 800 viewport.
+Grafana shows recorded request and triage metrics; Jaeger follows a real complaint submission
+from the browser through FastAPI to an outbound Groq request. Select either image for the full-size view.
+
+<table>
+  <tr>
+    <th align="left">Grafana: application metrics</th>
+    <th align="left">Jaeger: complaint request trace</th>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/grafana-dashboard.png">
+        <img src="docs/images/grafana-dashboard.png" width="100%" alt="Grafana dashboard with HTTP request rate, p95 request latency, triage latency by provider, and fallback metrics">
+      </a>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/jaeger-trace.png">
+        <img src="docs/images/jaeger-trace.png" width="100%" alt="Jaeger timeline showing a browser complaint submission, the FastAPI request, and the outbound Groq call">
+      </a>
+    </td>
+  </tr>
+</table>
+
 ## Deployment
+
+### Compare the deployment options
+
+| Behaviour | Development Compose | Production Compose | Kubernetes production overlay |
+| --- | --- | --- | --- |
+| Configuration | [compose.yaml](compose.yaml) | [compose.prod.yaml](compose.prod.yaml) | [k8s/overlays/prod](k8s/overlays/prod/) |
+| Application images | Built from the local checkout | Published GHCR images selected by `IMAGE_TAG` | Published GHCR images; replace the overlay's `latest` tags with a full SHA, as CD does |
+| Default triage | `rules`, selected by `TRIAGE_PROVIDER` | `llm`, selected by `PROD_TRIAGE_PROVIDER` | `simulated`, configured in the overlay |
+| Database migrations | Startup service | Startup service | Job; backend pods wait for completion |
+| Demo complaints | Seeds 32 on a fresh database | No automatic seeding | No automatic seeding |
+| Ollama | Starts by default; quickstart scales it down | Optional `ollama` profile | Not provisioned |
+| Monitoring services | Prometheus, Grafana, and Jaeger included | Not provisioned | Not provisioned |
+| Source reload | Backend reloads on save | Disabled | Disabled |
+| Scaling | Manual service scaling | Manual service scaling | Backend HPA: 2–5 replicas; requires metrics-server |
+
+These are the repository's defaults. Choosing a triage provider and provisioning its service
+are separate steps; enabling Ollama does not automatically select it for triage.
 
 ### Production Compose
 
